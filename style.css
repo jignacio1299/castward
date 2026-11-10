@@ -318,6 +318,38 @@ body {
   border: 1px solid #d4dad1;
 }
 
+.run-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.run-actions .btn {
+  margin-top: 0;
+}
+
+.action-feedback {
+  min-height: 18px;
+  margin-top: 8px;
+  color: #2c6e49;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.saved-session-box {
+  background-color: #e6f2ea;
+  border-color: #c4e2ce;
+}
+
+.saved-session-status {
+  display: inline-block;
+  margin-top: 8px;
+  color: #24583c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* Info & Metric Boxes */
 .run-banner {
   display: flex;

@@ -155,7 +155,9 @@ let demoState = {
   clothingPref: "usual",
   manualOverrides: {}, // Preserves manual checkbox edits across preference switches (EC07 / R07)
   selectedFeelingTag: "😄 Layering worked",
-  annotations: [...EMBEDDED_DEMO_DATA.sampleSessionAnnotations]
+  annotations: [...EMBEDDED_DEMO_DATA.sampleSessionAnnotations],
+  savedRun: null,
+  runStarted: false
 };
 
 let nwsPeriods = [];
@@ -313,6 +315,7 @@ function updateRunCalculations() {
   renderWeatherForHour(startHour24);
   renderHourlyForecastCards(startHour24);
   renderCompareScreen(startMins, durationInput, homeByMins);
+  updateRunActionState();
 }
 
 ["start-time-input", "duration-input", "home-by-input"].forEach((id) => {
@@ -457,6 +460,66 @@ function renderCompareScreen(startMins, durationInput, homeByMins) {
     } preserved)`;
   }
 }
+
+function getCurrentRunSummary() {
+  const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
+  const duration = parseInt(document.getElementById("duration-input")?.value, 10) || 30;
+  const homeBy = parseTimeToMinutes(document.getElementById("home-by-input")?.value);
+  const startHour = Math.floor(startMins / 60);
+  const weather = getHourData(startHour);
+
+  return {
+    date: getActiveScenarioObj().dateLabel,
+    start: formatMinutesTo12Hr(startMins),
+    finish: formatMinutesTo12Hr(startMins + duration),
+    duration,
+    homeBy: homeBy === null ? "flexible" : formatMinutesTo12Hr(homeBy),
+    weather: `${formatTemp(weather.tempF)} · ${weather.shortForecast}`,
+    status: document.getElementById("window-status-title")?.textContent || "Planned"
+  };
+}
+
+function updateRunActionState() {
+  const startButton = document.getElementById("btn-start-run");
+  const feedback = document.getElementById("run-action-feedback");
+  if (!startButton || !feedback) return;
+
+  if (demoState.runStarted) {
+    startButton.textContent = "Run started";
+    feedback.textContent = "Your run is underway. Stay aware of changing conditions.";
+  } else {
+    startButton.textContent = "Start run";
+    feedback.textContent = "";
+  }
+}
+
+function renderSavedRun() {
+  const box = document.getElementById("saved-session-box");
+  const summary = document.getElementById("saved-session-summary");
+  const status = document.getElementById("saved-session-status");
+  if (!box || !summary || !status) return;
+
+  if (!demoState.savedRun) {
+    box.classList.add("hidden");
+    return;
+  }
+
+  const run = demoState.savedRun;
+  box.classList.remove("hidden");
+  summary.textContent = `${run.date} · ${run.start}–${run.finish} · ${run.duration} min · ${run.weather}`;
+  status.textContent = `Home by ${run.homeBy} · ${run.status}`;
+}
+
+document.getElementById("btn-start-run")?.addEventListener("click", () => {
+  demoState.runStarted = true;
+  updateRunActionState();
+});
+
+document.getElementById("btn-save-session")?.addEventListener("click", () => {
+  demoState.savedRun = getCurrentRunSummary();
+  renderSavedRun();
+  showScreen("screen-saved");
+});
 
 document.getElementById("btn-use-slot1")?.addEventListener("click", () => {
   document.getElementById("start-time-input").value = "06:30";
@@ -686,3 +749,4 @@ updateRunCalculations();
 updateClothingRecommendations();
 updateSavedClothingSummary();
 renderAnnotations();
+renderSavedRun();

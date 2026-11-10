@@ -288,6 +288,16 @@
               >
                 Hourly forecast
               </button>
+
+              <div class="run-actions">
+                <button class="btn btn-primary" id="btn-start-run" type="button">
+                  Start run
+                </button>
+                <button class="btn btn-outline" id="btn-save-session" type="button">
+                  Save to sessions
+                </button>
+              </div>
+              <p class="action-feedback" id="run-action-feedback" role="status"></p>
             </div>
           </div>
         </section>
@@ -968,6 +978,12 @@
               <div class="info-box blue-tint">
                 <strong id="saved-plan-header">Chicago, IL · Wed, Oct 14 · 7:00 a.m. start</strong>
                 <p id="saved-plan-mode">Activity: Run-walk · Preference: Usual · Outdoor preparation</p>
+              </div>
+
+              <div class="info-box saved-session-box hidden" id="saved-session-box">
+                <strong>Saved session</strong>
+                <p id="saved-session-summary"></p>
+                <span class="saved-session-status" id="saved-session-status"></span>
               </div>
 
               <div class="info-box">
