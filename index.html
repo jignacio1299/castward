@@ -300,7 +300,30 @@
           <h2 class="page-title">Your running window</h2>
 
           <div class="run-banner clickable" data-target="screen-plan">
-            <span class="clock-icon">🕒</span>
+            <span class="clock-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke="#243C35"
+                />
+                <path
+                  d="M12 7V12L15 14"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke="#243C35"
+                />
+              </svg>
+            </span>
             <div>
               <strong id="window-summary-time">6:30–7:00 a.m. · 30 min</strong>
               <p>
@@ -405,15 +428,80 @@
               <!-- Weather Metrics -->
               <div class="metrics-row" style="margin-bottom: 0">
                 <div class="metric-box white-bg">
-                  <span class="metric-label">🌡️ Temperature</span>
+                  <span class="metric-label">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M10 14V5C10 4.46957 10.2107 3.96086 10.5858 3.58579C10.9609 3.21071 11.4696 3 12 3C12.5304 3 13.0391 3.21071 13.4142 3.58579C13.7893 3.96086 14 4.46957 14 5V14C15.0528 14.4595 15.9153 15.2675 16.4424 16.2881C16.9696 17.3087 17.1292 18.4797 16.8945 19.6041C16.6598 20.7286 16.0451 21.738 15.1538 22.4625C14.2624 23.1871 13.1487 23.5826 12 23.5826C10.8513 23.5826 9.73764 23.1871 8.84626 22.4625C7.95488 21.738 7.34017 20.7286 7.10548 19.6041C6.87078 18.4797 7.03043 17.3087 7.55758 16.2881C8.08472 15.2675 8.94721 14.4595 10 14Z"
+                        stroke="#243C35"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M12 9V18"
+                        stroke="#243C35"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    Temperature</span
+                  >
                   <strong id="win-temp" class="metric-value">63°F</strong>
                 </div>
                 <div class="metric-box white-bg">
-                  <span class="metric-label">🌧️ Rain chance</span>
+                  <span class="metric-label">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M6.99956 13.9999C5.67348 13.8673 4.45439 13.2134 3.61048 12.1819C2.76656 11.1505 2.36695 9.82602 2.49956 8.49993C2.63217 7.17385 3.28613 5.95476 4.31758 5.11085C5.34903 4.26693 6.67348 3.86733 7.99956 3.99993C8.73546 2.85455 9.839 1.99349 11.1289 1.55817C12.4189 1.12285 13.8185 1.13915 15.0979 1.6044C16.3774 2.06966 17.4606 2.95619 18.1696 4.1184C18.8786 5.28062 19.1713 6.6494 18.9996 7.99993C19.7952 7.99993 20.5583 8.316 21.1209 8.87861C21.6835 9.44122 21.9996 10.2043 21.9996 10.9999C21.9996 11.7956 21.6835 12.5586 21.1209 13.1213C20.5583 13.6839 19.7952 13.9999 18.9996 13.9999H6.99956Z"
+                        stroke="#243C35"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M8 18L7 21M13 18L12 21M18 18L17 21"
+                        stroke="#243C35"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    Rain chance</span
+                  >
                   <strong id="win-rain" class="metric-value">25%</strong>
                 </div>
                 <div class="metric-box white-bg">
-                  <span class="metric-label">💨 Wind</span>
+                  <span class="metric-label">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M3 8H15C15.5933 8 16.1734 7.82405 16.6667 7.49441C17.1601 7.16477 17.5446 6.69623 17.7716 6.14805C17.9987 5.59987 18.0581 4.99667 17.9424 4.41473C17.8266 3.83279 17.5409 3.29824 17.1213 2.87868C16.7018 2.45912 16.1672 2.1734 15.5853 2.05765C15.0033 1.94189 14.4001 2.0013 13.8519 2.22836C13.3038 2.45543 12.8352 2.83994 12.5056 3.33329C12.1759 3.82664 12 4.40666 12 5M3 12H19C19.5933 12 20.1734 12.1759 20.6667 12.5056C21.1601 12.8352 21.5446 13.3038 21.7716 13.852C21.9987 14.4001 22.0581 15.0033 21.9424 15.5853C21.8266 16.1672 21.5409 16.7018 21.1213 17.1213C20.7018 17.5409 20.1672 17.8266 19.5853 17.9424C19.0033 18.0581 18.4001 17.9987 17.8519 17.7716C17.3038 17.5446 16.8352 17.1601 16.5056 16.6667C16.1759 16.1734 16 15.5933 16 15M3 16H10"
+                        stroke="#243C35"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    Wind</span
+                  >
                   <strong id="win-wind" class="metric-value">10 mph</strong>
                 </div>
               </div>
@@ -474,7 +562,30 @@
           <h2 class="page-title">What the forecast says</h2>
 
           <div class="run-banner clickable" data-target="screen-plan">
-            <span class="clock-icon">🕒</span>
+            <span class="clock-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke="#243C35"
+                />
+                <path
+                  d="M12 7V12L15 14"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke="#243C35"
+                />
+              </svg>
+            </span>
             <div>
               <strong id="forecast-summary-time"
                 >6:30–7:00 a.m. · 30 min</strong
@@ -499,15 +610,87 @@
 
               <div class="metrics-row">
                 <div class="metric-box">
-                  <span class="metric-label">🌡️ Temperature</span>
+                  <span class="metric-label">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <g clip-path="url(#clip0_160_25983)">
+                        <path
+                          d="M10 14V5C10 4.46957 10.2107 3.96086 10.5858 3.58579C10.9609 3.21071 11.4696 3 12 3C12.5304 3 13.0391 3.21071 13.4142 3.58579C13.7893 3.96086 14 4.46957 14 5V14C15.0528 14.4595 15.9153 15.2675 16.4424 16.2881C16.9696 17.3087 17.1292 18.4797 16.8945 19.6041C16.6598 20.7286 16.0451 21.738 15.1538 22.4625C14.2624 23.1871 13.1487 23.5826 12 23.5826C10.8513 23.5826 9.73764 23.1871 8.84626 22.4625C7.95488 21.738 7.34017 20.7286 7.10548 19.6041C6.87078 18.4797 7.03043 17.3087 7.55758 16.2881C8.08472 15.2675 8.94721 14.4595 10 14Z"
+                          stroke-width="1.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke="#243C35"
+                        />
+                        <path
+                          d="M12 9V18"
+                          stroke-width="1.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke="#243C35"
+                        />
+                      </g>
+                      <defs>
+                        <clipPath id="clip0_160_25983">
+                          <rect width="24" height="24" fill="white" />
+                        </clipPath>
+                      </defs>
+                    </svg>
+                    Temperature</span
+                  >
                   <strong id="temp-value" class="metric-value">63°F</strong>
                 </div>
                 <div class="metric-box">
-                  <span class="metric-label">🌧️ Rain chance</span>
+                  <span class="metric-label">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M6.99956 13.9999C5.67348 13.8673 4.45439 13.2134 3.61048 12.1819C2.76656 11.1505 2.36695 9.82602 2.49956 8.49993C2.63217 7.17385 3.28613 5.95476 4.31758 5.11085C5.34903 4.26693 6.67348 3.86733 7.99956 3.99993C8.73546 2.85455 9.839 1.99349 11.1289 1.55817C12.4189 1.12285 13.8185 1.13915 15.0979 1.6044C16.3774 2.06966 17.4606 2.95619 18.1696 4.1184C18.8786 5.28062 19.1713 6.6494 18.9996 7.99993C19.7952 7.99993 20.5583 8.316 21.1209 8.87861C21.6835 9.44122 21.9996 10.2043 21.9996 10.9999C21.9996 11.7956 21.6835 12.5586 21.1209 13.1213C20.5583 13.6839 19.7952 13.9999 18.9996 13.9999H6.99956Z"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke="#243C35"
+                      />
+                      <path
+                        d="M8 18L7 21M13 18L12 21M18 18L17 21"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke="#243C35"
+                      />
+                    </svg>
+                    Rain chance</span
+                  >
                   <strong id="rain-value" class="metric-value">25%</strong>
                 </div>
                 <div class="metric-box">
-                  <span class="metric-label">💨 Wind</span>
+                  <span class="metric-label">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M3 8H15C15.5933 8 16.1734 7.82405 16.6667 7.49441C17.1601 7.16477 17.5446 6.69623 17.7716 6.14805C17.9987 5.59987 18.0581 4.99667 17.9424 4.41473C17.8266 3.83279 17.5409 3.29824 17.1213 2.87868C16.7018 2.45912 16.1672 2.1734 15.5853 2.05765C15.0033 1.94189 14.4001 2.0013 13.8519 2.22836C13.3038 2.45543 12.8352 2.83994 12.5056 3.33329C12.1759 3.82664 12 4.40666 12 5M3 12H19C19.5933 12 20.1734 12.1759 20.6667 12.5056C21.1601 12.8352 21.5446 13.3038 21.7716 13.852C21.9987 14.4001 22.0581 15.0033 21.9424 15.5853C21.8266 16.1672 21.5409 16.7018 21.1213 17.1213C20.7018 17.5409 20.1672 17.8266 19.5853 17.9424C19.0033 18.0581 18.4001 17.9987 17.8519 17.7716C17.3038 17.5446 16.8352 17.1601 16.5056 16.6667C16.1759 16.1734 16 15.5933 16 15M3 16H10"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke="#243C35"
+                      />
+                    </svg>
+                    Wind</span
+                  >
                   <strong id="wind-value" class="metric-value"
                     >10 mph NNE</strong
                   >
