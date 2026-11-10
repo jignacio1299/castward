@@ -474,3 +474,156 @@ body {
   width: 200px;
   margin-top: 6px;
 }
+
+
+/* Added Demo & UC1/UC2 Styles */
+.three-col-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.pill-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.danger-pill {
+  background: #8c2a22;
+  color: #ffffff;
+}
+
+.caution-pill {
+  background: #855213;
+  color: #ffffff;
+}
+
+.neutral-banner {
+  background-color: #eef1ef;
+  border: 1px solid #d5dcd7;
+}
+
+.gear-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e6e4dd;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background: #ffffff;
+}
+
+.gear-check-row:hover {
+  border-color: #2c6e49;
+  background: #f9fbf9;
+}
+
+.gear-check-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #2c6e49;
+  flex-shrink: 0;
+}
+
+.gear-check-row strong {
+  display: block;
+  font-size: 14px;
+  color: #1e2420;
+  margin-bottom: 2px;
+}
+
+.gear-check-row p {
+  font-size: 12px;
+  color: #5c645d;
+  line-height: 1.35;
+}
+
+.clean-list {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 6px;
+}
+
+.clean-list li {
+  font-size: 13px;
+  color: #243c35;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.tag-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tag-pill {
+  border: 1px solid #d4dad1;
+  background: #ffffff;
+  color: #243c35;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tag-pill.active {
+  background: #dfece3;
+  border-color: #2c6e49;
+  color: #1e3a2b;
+}
+
+.input-box textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: #1e2420;
+  outline: none;
+  resize: vertical;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.annotations-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.annotation-item {
+  background: #f7f9f7;
+  border: 1px solid #e1e8e3;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.annotation-item .ann-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #5c645d;
+  margin-bottom: 4px;
+}
+
+.annotation-item .ann-tag {
+  font-weight: 700;
+  color: #2c6e49;
+}
+
+.annotation-item p {
+  font-size: 12px;
+  color: #1e2420;
+  line-height: 1.4;
+}

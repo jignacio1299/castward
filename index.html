@@ -19,9 +19,9 @@
           <button class="nav-item active" data-target="screen-home">
             Plan
           </button>
-          <button class="nav-item">Clothing</button>
-          <button class="nav-item">Saved</button>
-          <button class="nav-item">Preferences</button>
+          <button class="nav-item" data-target="screen-clothing">Clothing</button>
+          <button class="nav-item" data-target="screen-saved">Saved</button>
+          <button class="nav-item" data-target="screen-preferences">Preferences</button>
         </nav>
       </header>
 
@@ -146,7 +146,7 @@
                 <strong>Compare start times</strong>
                 <p>Keep your duration while checking another window.</p>
               </div>
-              <div class="info-box">
+              <div class="info-box clickable" data-target="screen-clothing">
                 <strong>Choose clothing</strong>
                 <p>Choose items for running or run-walk.</p>
               </div>
@@ -526,7 +526,7 @@
               <button
                 id="window-primary-btn"
                 class="btn btn-primary full-width"
-                data-target="screen-plan"
+                data-target="screen-compare"
               >
                 Compare times
               </button>
@@ -538,7 +538,7 @@
                 <button
                   id="window-secondary-btn"
                   class="btn btn-outline"
-                  data-target="screen-plan"
+                  data-target="screen-indoor"
                 >
                   Indoor option
                 </button>
@@ -758,6 +758,319 @@
             Back
           </button>
         </section>
+      
+        <!-- ================= SCREEN 7: COMPARE START TIMES (UC1) ================= -->
+        <section id="screen-compare" class="screen">
+          <a href="#" class="back-link" data-target="screen-window">&lsaquo; Compare start times</a>
+          <h2 class="page-title">Same run, another time</h2>
+          <p class="page-subtitle">
+            <span class="current-location">Chicago, IL</span> · <span id="compare-duration-label">30 minutes</span> · Home by <span id="compare-homeby-label">7:15 a.m.</span>
+          </p>
+
+          <div class="content-grid">
+            <div class="card">
+              <h3>Compare windows</h3>
+
+              <div id="compare-card-1" class="alert-box danger" style="margin-bottom: 14px">
+                <span class="pill-badge danger-pill">Reconsider</span>
+                <strong id="compare-slot1-title" style="font-size: 16px; margin-top: 6px">6:30–7:00 a.m.</strong>
+                <p id="compare-slot1-desc" style="margin-top: 4px">
+                  Thunderstorms in the hourly forecast · 63°F · rain 25% · wind 10 mph NNE
+                </p>
+                <p id="compare-slot1-deadline" style="margin-top: 6px; font-weight: 600">
+                  ✓ Finishes 15 minutes before Home by 7:15 a.m.
+                </p>
+              </div>
+
+              <div id="compare-card-2" class="alert-box caution" style="margin-bottom: 0">
+                <span class="pill-badge caution-pill">Use caution</span>
+                <strong id="compare-slot2-title" style="font-size: 16px; margin-top: 6px">7:00–7:30 a.m.</strong>
+                <p id="compare-slot2-desc" style="margin-top: 4px">
+                  Showers remain possible (low chance ≠ dry) · 63°F · rain 22% · wind 10 mph NNE
+                </p>
+                <p id="compare-slot2-deadline" style="margin-top: 6px; font-weight: 600; color: #8c2a22">
+                  ⚠️ Ends 15 minutes after Home by 7:15 a.m.
+                </p>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>The time tradeoff</h3>
+              <div class="info-box blue-tint">
+                <strong>Weather fit vs. schedule fit</strong>
+                <p id="compare-tradeoff-text">
+                  The 7:00 a.m. start has a lower rain chance (22% showers vs. 25% thunderstorms), but its 7:30 a.m. finish misses your 7:15 a.m. deadline by 15 minutes.
+                </p>
+              </div>
+
+              <div class="two-col-row">
+                <button class="btn btn-outline" id="btn-use-slot1">Use 6:30 a.m.</button>
+                <button class="btn btn-outline" id="btn-use-slot2">Use 7:00 a.m.</button>
+              </div>
+
+              <button class="btn btn-primary full-width" data-target="screen-indoor">
+                Keep the time, choose indoor
+              </button>
+              <button class="btn btn-outline full-width" data-target="screen-hourly">
+                Hourly forecast
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= SCREEN 8: SAVED INDOOR OPTION (UC1) ================= -->
+        <section id="screen-indoor" class="screen">
+          <a href="#" class="back-link" data-target="screen-compare">&lsaquo; Saved indoor option</a>
+          <h2 class="page-title">Your indoor option is saved</h2>
+          <p class="page-subtitle">
+            Keeps your planned workout window without waiting on uncertain storm timing.
+          </p>
+
+          <div class="content-grid">
+            <div class="card">
+              <h3>Confirmed session</h3>
+              <div class="info-box blue-tint">
+                <strong id="indoor-saved-window">Wed, Oct 14 · 6:30–7:00 a.m.</strong>
+                <p id="indoor-saved-meta">
+                  30 minutes indoors · Finish: 7:00 a.m. (Home by 7:15 a.m. preserved)
+                </p>
+              </div>
+
+              <div class="info-box">
+                <strong>Before you start</strong>
+                <p>
+                  Prepare for your chosen indoor activity (e.g., home routine or rec center). This confirmation records your personal time block; it does not book a facility.
+                </p>
+              </div>
+
+              <button class="btn btn-primary full-width" data-target="screen-saved">
+                View saved plan &amp; add session note
+              </button>
+              <button class="btn btn-outline full-width" data-target="screen-compare">
+                Review outdoor times
+              </button>
+            </div>
+
+            <div class="card">
+              <h3>Outdoor conditions still matter</h3>
+              <div class="info-box" style="margin-bottom: 0">
+                <strong>Scope reminder</strong>
+                <p>
+                  Choosing an indoor session preserves your routine consistency without penalty or streak loss. Recheck the forecast if you later decide to go outdoors.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= SCREEN 9: CHOOSE CLOTHING (UC2) ================= -->
+        <section id="screen-clothing" class="screen">
+          <a href="#" class="back-link" data-target="screen-home">&lsaquo; Clothing</a>
+          <h2 class="page-title">Choose clothing</h2>
+          <p class="page-subtitle">
+            <span class="current-location">Chicago, IL</span> · <span class="current-date">Wed, Oct 14</span> · <span id="clothing-time-label">7:00 a.m. start</span> · Clothing preparation only
+          </p>
+
+          <div class="content-grid">
+            <div class="card">
+              <h3>Activity &amp; comfort preference</h3>
+
+              <span class="section-label">Activity profile</span>
+              <div class="two-col-row">
+                <button type="button" class="choice-btn" id="act-running" data-activity="running">
+                  Running
+                </button>
+                <button type="button" class="choice-btn active" id="act-runwalk" data-activity="run-walk">
+                  Run-walk
+                </button>
+              </div>
+
+              <span class="section-label">Clothing preference (personal warmth, not weather)</span>
+              <div class="three-col-row">
+                <button type="button" class="choice-btn" id="pref-cooler" data-pref="cooler">
+                  Cooler (Lighter)
+                </button>
+                <button type="button" class="choice-btn active" id="pref-usual" data-pref="usual">
+                  Usual
+                </button>
+                <button type="button" class="choice-btn" id="pref-warmer" data-pref="warmer">
+                  Warmer
+                </button>
+              </div>
+
+              <div class="info-box blue-tint" style="margin-top: 14px; margin-bottom: 0">
+                <strong>Why the suggestion changes</strong>
+                <p id="clothing-reason-text">
+                  Walking breaks can feel cooler after warming up. Consider a removable light layer (like a light zip top or hoodie you can tie around your waist).
+                </p>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Adjustable clothing items</h3>
+              <p class="helper-text" style="margin-top: 0; margin-bottom: 12px">
+                Check or uncheck items you own. Manual edits stay yours when switching preferences.
+              </p>
+
+              <label class="gear-check-row" for="gear-base">
+                <input type="checkbox" id="gear-base" checked />
+                <div>
+                  <strong id="gear-base-title">Light running top</strong>
+                  <p id="gear-base-desc">Breathable short-sleeve or tank base layer for 63°F.</p>
+                </div>
+              </label>
+
+              <label class="gear-check-row" for="gear-layer">
+                <input type="checkbox" id="gear-layer" checked />
+                <div>
+                  <strong id="gear-layer-title">Removable light layer</strong>
+                  <p id="gear-layer-desc">Useful during walking breaks; easy to remove once warm.</p>
+                </div>
+              </label>
+
+              <label class="gear-check-row" for="gear-shell">
+                <input type="checkbox" id="gear-shell" />
+                <div>
+                  <strong id="gear-shell-title">Rain-resistant outer layer</strong>
+                  <p id="gear-shell-desc">Optional for 22% shower chance; can trap heat if humid (90%).</p>
+                </div>
+              </label>
+
+              <label class="gear-check-row" for="gear-acc">
+                <input type="checkbox" id="gear-acc" />
+                <div>
+                  <strong id="gear-acc-title">Personal visibility / eye protection</strong>
+                  <p id="gear-acc-desc">Brimmed cap for glasses in drizzle or reflective vest near dusk.</p>
+                </div>
+              </label>
+
+              <button class="btn btn-primary full-width" id="btn-save-clothing" data-target="screen-saved">
+                Save clothing
+              </button>
+              <button class="btn btn-outline full-width" data-target="screen-hourly">
+                Check the forecast
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= SCREEN 10: SAVED PLAN & SESSION ANNOTATIONS ================= -->
+        <section id="screen-saved" class="screen">
+          <a href="#" class="back-link" data-target="screen-clothing">&lsaquo; Saved plan &amp; notes</a>
+          <h2 class="page-title">Clothing &amp; session notes</h2>
+          <p class="page-subtitle">
+            Review your locked preparation and record a quick reflection on what worked or didn't.
+          </p>
+
+          <div class="content-grid">
+            <div class="card">
+              <h3>Saved preparation summary</h3>
+              <div class="info-box blue-tint">
+                <strong id="saved-plan-header">Chicago, IL · Wed, Oct 14 · 7:00 a.m. start</strong>
+                <p id="saved-plan-mode">Activity: Run-walk · Preference: Usual · Outdoor preparation</p>
+              </div>
+
+              <div class="info-box">
+                <strong>Selected clothing items</strong>
+                <ul id="saved-gear-list" class="clean-list">
+                  <li>✓ Light running top (base layer)</li>
+                  <li>✓ Removable light layer (for walking breaks)</li>
+                </ul>
+              </div>
+
+              <div class="info-box" style="margin-bottom: 12px">
+                <strong>What isn't covered here</strong>
+                <p>
+                  Saving clothing does not clear weather warnings or check trail mud, ice, pollen, or sunscreen.
+                </p>
+              </div>
+
+              <div class="two-col-row" style="margin-bottom: 0">
+                <button class="btn btn-outline" data-target="screen-clothing">Adjust clothing</button>
+                <button class="btn btn-primary" data-target="screen-plan">Plan another run</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Session reflection &amp; annotation</h3>
+              <p class="helper-text" style="margin-top: 0">
+                Stop guessing what you wore last time (P01, P10). Tap a quick-tag and jot down what worked or didn't for future runs in similar weather:
+              </p>
+
+              <div class="tag-pills-row" id="annotation-tags">
+                <button type="button" class="tag-pill active" data-tag="😄 Layering worked">😄 Layering worked</button>
+                <button type="button" class="tag-pill" data-tag="🥵 Too warm after 10m">🥵 Too warm after 10m</button>
+                <button type="button" class="tag-pill" data-tag="🥶 Chilly on walk breaks">🥶 Chilly on walk breaks</button>
+                <button type="button" class="tag-pill" data-tag="💨 Windy / needed cap">💨 Windy / needed cap</button>
+              </div>
+
+              <label class="input-box" for="session-note-input" style="display: block; margin-top: 10px">
+                <span class="input-label">Session note (What worked / What didn't)</span>
+                <textarea id="session-note-input" rows="2" placeholder="e.g., Light zip layer was great for walk breaks; skip heavy sweatshirt at 63°F.">Walking breaks felt cooler; tying the removable light layer around my waist during running stretches worked much better than a heavy hoodie.</textarea>
+              </label>
+
+              <button type="button" class="btn btn-primary full-width" id="btn-add-annotation">
+                Save session note (local device only)
+              </button>
+
+              <div id="annotations-history" class="annotations-feed" style="margin-top: 14px"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= SCREEN 11: PREFERENCES & DEMO CONTROLS (R08/R09) ================= -->
+        <section id="screen-preferences" class="screen">
+          <a href="#" class="back-link" data-target="screen-home">&lsaquo; Preferences &amp; Demo Controls</a>
+          <h2 class="page-title">Preferences &amp; Demo Scenarios</h2>
+          <p class="page-subtitle">
+            Switch weather snapshots for live classroom demos (including R09 API failure state) and set units.
+          </p>
+
+          <div class="content-grid">
+            <div class="card">
+              <h3>Demo weather scenario preset</h3>
+              <p class="helper-text" style="margin-top: 0">
+                Guarantees deterministic weather data during live demos even when current Chicago weather differs from the study scenario.
+              </p>
+
+              <div class="stack-column" id="scenario-buttons">
+                <button type="button" class="choice-btn active full-width" data-scenario="oct14_thunderstorm" style="text-align: left">
+                  <strong>1. Study Scenario: Wed, Oct 14 Thunderstorms (Default)</strong><br />
+                  <span style="font-size: 12px; font-weight: 400; color: #4a544c">6:00 a.m. 63°F (25% Thunderstorms · Reconsider) → 7:00 a.m. 63°F (22% Showers · Use caution)</span>
+                </button>
+                <button type="button" class="choice-btn full-width" data-scenario="alerts_unavailable" style="text-align: left; margin-top: 8px">
+                  <strong>2. R09 Failure Mode: Alerts Check Failed</strong><br />
+                  <span style="font-size: 12px; font-weight: 400; color: #4a544c">Simulates NWS alert endpoint failure; preserves runner's plan and flags missing check</span>
+                </button>
+                <button type="button" class="choice-btn full-width" data-scenario="lakefront_wind" style="text-align: left; margin-top: 8px">
+                  <strong>3. Clear &amp; Breezy Lakefront Run (P01)</strong><br />
+                  <span style="font-size: 12px; font-weight: 400; color: #4a544c">54–58°F, 10% rain, 15 mph ENE wind · Good window to run</span>
+                </button>
+                <button type="button" class="choice-btn full-width" data-scenario="live_nws" style="text-align: left; margin-top: 8px">
+                  <strong>4. Live NWS API Fetch (Chicago LOT/76,73)</strong><br />
+                  <span style="font-size: 12px; font-weight: 400; color: #4a544c">Pulls real-time hourly periods from api.weather.gov</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Units &amp; local data privacy</h3>
+              <span class="section-label">Temperature units (P10 Toronto feedback)</span>
+              <div class="two-col-row">
+                <button type="button" class="choice-btn active" id="unit-f" data-unit="F">Fahrenheit (°F)</button>
+                <button type="button" class="choice-btn" id="unit-c" data-unit="C">Celsius (°C)</button>
+              </div>
+
+              <div class="info-box blue-tint" style="margin-top: 12px; margin-bottom: 0">
+                <strong>Local privacy &amp; ownership</strong>
+                <p>
+                  Your planned runs, clothing checkboxes, and session annotations are stored locally on this device. No account or cloud tracking required.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </main>
 
       <footer class="footer">

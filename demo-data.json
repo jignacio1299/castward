@@ -1,0 +1,148 @@
+{
+  "activeScenario": "oct14_thunderstorm",
+  "units": "F",
+  "scenarios": {
+    "oct14_thunderstorm": {
+      "id": "oct14_thunderstorm",
+      "label": "Study Scenario: Wed, Oct 14 (Thunderstorms \u00b7 UC1 & UC2)",
+      "location": "Chicago, IL",
+      "dateLabel": "Wed, Oct 14",
+      "retrievedAt": "NWS \u00b7 retrieved Oct 14, 12:09 a.m. CDT",
+      "gridPoint": "LOT/76,73 (41.8818, -87.6232)",
+      "alertStatus": "clear",
+      "alertHeadline": "No active NWS alerts were listed at the capture time.",
+      "hours": [
+        {
+          "hour24": 6,
+          "timeLabel": "6:00 a.m.",
+          "tempF": 63,
+          "rain": 25,
+          "windSpeed": "10 mph",
+          "windDir": "NNE",
+          "shortForecast": "Chance Showers And Thunderstorms",
+          "humidity": 90
+        },
+        {
+          "hour24": 7,
+          "timeLabel": "7:00 a.m.",
+          "tempF": 63,
+          "rain": 22,
+          "windSpeed": "10 mph",
+          "windDir": "NNE",
+          "shortForecast": "Slight Chance Rain Showers",
+          "humidity": 90
+        },
+        {
+          "hour24": 8,
+          "timeLabel": "8:00 a.m.",
+          "tempF": 62,
+          "rain": 21,
+          "windSpeed": "10 mph",
+          "windDir": "NNE",
+          "shortForecast": "Slight Chance Rain Showers",
+          "humidity": 90
+        }
+      ]
+    },
+    "alerts_unavailable": {
+      "id": "alerts_unavailable",
+      "label": "R09 Failure Mode: Alerts Check Failed (Preserves Plan)",
+      "location": "Chicago, IL",
+      "dateLabel": "Wed, Oct 14",
+      "retrievedAt": "NWS \u00b7 retrieved Oct 14, 12:09 a.m. CDT (Alerts check failed)",
+      "gridPoint": "LOT/76,73",
+      "alertStatus": "failed",
+      "alertHeadline": "Alerts not checked. Do not read this as an absence of alerts.",
+      "hours": [
+        {
+          "hour24": 6,
+          "timeLabel": "6:00 a.m.",
+          "tempF": 63,
+          "rain": 25,
+          "windSpeed": "10 mph",
+          "windDir": "NNE",
+          "shortForecast": "Chance Showers And Thunderstorms",
+          "humidity": 90
+        },
+        {
+          "hour24": 7,
+          "timeLabel": "7:00 a.m.",
+          "tempF": 63,
+          "rain": 22,
+          "windSpeed": "10 mph",
+          "windDir": "NNE",
+          "shortForecast": "Slight Chance Rain Showers",
+          "humidity": 90
+        },
+        {
+          "hour24": 8,
+          "timeLabel": "8:00 a.m.",
+          "tempF": 62,
+          "rain": 21,
+          "windSpeed": "10 mph",
+          "windDir": "NNE",
+          "shortForecast": "Slight Chance Rain Showers",
+          "humidity": 90
+        }
+      ]
+    },
+    "lakefront_wind": {
+      "id": "lakefront_wind",
+      "label": "Clear & Breezy Scenario: Lakefront Exposure (P01)",
+      "location": "Chicago, IL",
+      "dateLabel": "Sun, Nov 8",
+      "retrievedAt": "NWS \u00b7 retrieved Nov 8, 3:45 p.m. CST",
+      "gridPoint": "LOT/76,73",
+      "alertStatus": "clear",
+      "alertHeadline": "No active NWS alerts in this snapshot.",
+      "hours": [
+        {
+          "hour24": 6,
+          "timeLabel": "6:00 a.m.",
+          "tempF": 54,
+          "rain": 10,
+          "windSpeed": "15 mph",
+          "windDir": "ENE",
+          "shortForecast": "Mostly Sunny And Breezy",
+          "humidity": 68
+        },
+        {
+          "hour24": 7,
+          "timeLabel": "7:00 a.m.",
+          "tempF": 56,
+          "rain": 10,
+          "windSpeed": "15 mph",
+          "windDir": "ENE",
+          "shortForecast": "Mostly Sunny",
+          "humidity": 64
+        },
+        {
+          "hour24": 8,
+          "timeLabel": "8:00 a.m.",
+          "tempF": 58,
+          "rain": 5,
+          "windSpeed": "12 mph",
+          "windDir": "E",
+          "shortForecast": "Sunny",
+          "humidity": 60
+        }
+      ]
+    }
+  },
+  "sampleSessionAnnotations": [
+    {
+      "id": "note-1",
+      "date": "Wed, Oct 14 \u00b7 7:00 a.m. (Run-walk \u00b7 63\u00b0F)",
+      "feelingTag": "\ud83d\ude04 Layering worked",
+      "gearSummary": "Light running top + Removable light layer",
+      "note": "Walking breaks felt cooler near Arrigo Park; tying the light zip layer around my waist during running stretches worked much better than a heavy hoodie."
+    },
+    {
+      "id": "note-2",
+      "date": "Sun, Oct 11 \u00b7 4:30 p.m. (Running \u00b7 58\u00b0F)",
+      "feelingTag": "\ud83e\udd75 Overheated",
+      "gearSummary": "Long-sleeve top + Zip jacket",
+      "note": "Dressed for standing in the hallway and started sweating 10 minutes in. Next time at 55\u201360\u00b0F: skip the heavy jacket and bring a cap for wind."
+    }
+  ]
+}
