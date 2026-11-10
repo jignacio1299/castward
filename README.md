@@ -30,6 +30,10 @@ Then open the local address printed in the terminal. With the included `serve` c
 
 The app is static, so you can also open `index.html` directly. Running the local server is recommended because it gives you the same experience as a simple hosted demo.
 
+## Deploy on GitHub Pages
+
+Pushes to `main` automatically deploy the site through GitHub Pages. In the repository settings, set **Pages** to use **GitHub Actions** as the build and deployment source. The published URL will be shown on the workflow run and in the repository's Pages settings.
+
 ## Quick click-through demo
 
 For the most reliable demonstration, use the default embedded study scenario:
