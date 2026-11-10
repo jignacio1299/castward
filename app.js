@@ -157,11 +157,14 @@ let demoState = {
   selectedFeelingTag: "😄 Layering worked",
   annotations: [...EMBEDDED_DEMO_DATA.sampleSessionAnnotations],
   savedRun: null,
-  runStarted: false
+  runStarted: false,
+  runStartedAt: null,
+  runCompleted: false
 };
 
 let nwsPeriods = [];
 let previousScreen = "screen-home";
+let runTimerInterval = null;
 
 function formatTemp(tempF) {
   if (demoState.units === "C") {
@@ -510,15 +513,76 @@ function renderSavedRun() {
   status.textContent = `Home by ${run.homeBy} · ${run.status}`;
 }
 
+function formatTimer(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function updateActiveRunTimer() {
+  const panel = document.getElementById("active-run-panel");
+  const display = document.getElementById("run-timer-display");
+  const caption = document.getElementById("run-timer-caption");
+  const progress = document.getElementById("run-timer-progress");
+  const title = document.getElementById("active-run-title");
+  const badge = document.getElementById("active-run-badge");
+  if (!panel || !display || !caption || !progress || !title || !badge || !demoState.savedRun) return;
+
+  const totalSeconds = demoState.savedRun.duration * 60;
+  const elapsedSeconds = Math.min(
+    totalSeconds,
+    Math.max(0, Math.floor((Date.now() - demoState.runStartedAt) / 1000))
+  );
+  const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+  const complete = demoState.runCompleted || elapsedSeconds >= totalSeconds;
+
+  panel.classList.remove("hidden");
+  display.textContent = formatTimer(complete ? totalSeconds : elapsedSeconds);
+  progress.style.width = `${(elapsedSeconds / totalSeconds) * 100}%`;
+
+  if (complete) {
+    demoState.runCompleted = true;
+    demoState.runStarted = false;
+    title.textContent = "Run complete";
+    badge.textContent = "DONE";
+    caption.textContent = "Nice work. Add a note below to remember how it felt.";
+    clearInterval(runTimerInterval);
+    runTimerInterval = null;
+    document.getElementById("btn-finish-run").textContent = "Run finished";
+  } else {
+    title.textContent = "Run in progress";
+    badge.textContent = "LIVE";
+    caption.textContent = `Elapsed · ${formatTimer(remainingSeconds)} remaining`;
+  }
+}
+
+function startRunTimer() {
+  clearInterval(runTimerInterval);
+  updateActiveRunTimer();
+  runTimerInterval = setInterval(updateActiveRunTimer, 1000);
+}
+
 document.getElementById("btn-start-run")?.addEventListener("click", () => {
+  demoState.savedRun = getCurrentRunSummary();
   demoState.runStarted = true;
+  demoState.runCompleted = false;
+  demoState.runStartedAt = Date.now();
+  renderSavedRun();
   updateRunActionState();
+  showScreen("screen-saved");
+  startRunTimer();
 });
 
 document.getElementById("btn-save-session")?.addEventListener("click", () => {
   demoState.savedRun = getCurrentRunSummary();
   renderSavedRun();
   showScreen("screen-saved");
+});
+
+document.getElementById("btn-finish-run")?.addEventListener("click", () => {
+  if (!demoState.runStarted || !demoState.savedRun) return;
+  demoState.runCompleted = true;
+  updateActiveRunTimer();
 });
 
 document.getElementById("btn-use-slot1")?.addEventListener("click", () => {

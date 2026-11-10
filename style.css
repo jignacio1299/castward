@@ -350,6 +350,72 @@ body {
   font-weight: 600;
 }
 
+.active-run-panel {
+  margin-bottom: 12px;
+  padding: 18px;
+  border: 1px solid #b9ddc5;
+  border-radius: 12px;
+  background: #f0f8f2;
+}
+
+.active-run-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.active-run-heading .section-label {
+  margin-bottom: 3px;
+}
+
+.active-run-heading strong {
+  color: #24583c;
+  font-size: 15px;
+}
+
+.run-live-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #d7eddd;
+  color: #24583c;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.timer-display {
+  margin-top: 16px;
+  color: #1e3a2b;
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.timer-caption {
+  margin-top: 8px;
+  color: #5c645d;
+  font-size: 12px;
+}
+
+.timer-track {
+  height: 8px;
+  margin: 14px 0 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dcebe0;
+}
+
+.timer-track span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #35684d;
+  transition: width 0.4s linear;
+}
+
 /* Info & Metric Boxes */
 .run-banner {
   display: flex;
