@@ -33,7 +33,7 @@
           >
           <h2 class="page-title">Plan your next run</h2>
           <p class="page-subtitle">
-            Choose a time to see conditions for your whole run.
+            Choose a time to see live conditions for your whole run.
           </p>
 
           <div class="content-grid">
@@ -121,13 +121,13 @@
                 </div>
                 <div>
                   <strong>Hello, Casty here. Where would you like to start your run?</strong>
-                  
+                  <p id="home-weather-preview" style="margin-top: 4px">Loading live forecast...</p>
                 </div>
               </div>
 
               <div class="input-box clickable" data-target="screen-location">
-                <span class="input-label">Forecast location</span>
-                <strong>Chicago, IL</strong>
+                <span class="input-label">Forecast location (click to change)</span>
+                <strong class="current-location">Chicago, IL</strong>
               </div>
 
               <button
@@ -148,7 +148,7 @@
               </div>
               <div class="info-box clickable" data-target="screen-clothing">
                 <strong>Choose clothing</strong>
-                <p>Choose items for running or run-walk.</p>
+                <p>Choose items for running or run-walk based on live weather.</p>
               </div>
               <div class="info-box clickable" data-target="screen-hourly">
                 <strong>Hourly forecast</strong>
@@ -172,37 +172,61 @@
             <div class="card">
               <h3>Forecast location</h3>
               <div class="input-box">
-                <span class="input-label">City or place</span>
-                <strong>Chicago, IL</strong>
+                <span class="input-label">Selected location</span>
+                <strong class="current-location">Chicago, IL</strong>
               </div>
 
               <button
                 class="btn btn-primary full-width"
+                id="btn-confirm-location"
                 data-target="screen-plan"
               >
-                Use Chicago, IL
+                Continue with <span class="current-location">Chicago, IL</span>
               </button>
               <button
                 class="btn btn-outline full-width"
-                data-target="screen-plan"
+                id="btn-use-geolocation"
+                type="button"
               >
-                Use my location
+                Use my current location
               </button>
+              <p id="location-status-msg" class="action-feedback" role="status"></p>
 
-              <div class="input-box" style="margin-top: 12px; margin-bottom: 0">
-                <span class="input-label">Another location</span>
-                <strong>Toronto, ON</strong>
+              <div style="margin-top: 16px">
+                <label class="input-box" for="location-search-input" style="display: block">
+                  <span class="input-label">Search city or place</span>
+                  <div class="search-row">
+                    <input
+                      type="text"
+                      id="location-search-input"
+                      placeholder="e.g., Seattle, New York, Toronto..."
+                      autocomplete="off"
+                    />
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-search-location">
+                      Search
+                    </button>
+                  </div>
+                </label>
+                <div id="location-search-results" class="search-results-list"></div>
               </div>
             </div>
 
             <div class="card">
               <h3>Location context</h3>
-              <div class="info-box blue-tint" style="margin-bottom: 0">
-                <strong>Lakefront or sheltered streets?</strong>
+              <div class="info-box blue-tint">
+                <strong>Waterfront or sheltered streets?</strong>
                 <p>
-                  Wind can feel different along the lake. The city forecast does
-                  not measure every route.
+                  Wind and temperature can feel different along open water or exposed paths. A point forecast does not measure every route.
                 </p>
+              </div>
+              <div class="info-box" style="margin-bottom: 0">
+                <strong>Quick locations</strong>
+                <div class="tag-pills-row" id="quick-locations">
+                  <button type="button" class="tag-pill" data-lat="41.8818" data-lon="-87.6232" data-name="Chicago, IL">Chicago, IL</button>
+                  <button type="button" class="tag-pill" data-lat="40.7128" data-lon="-74.0060" data-name="New York, NY">New York, NY</button>
+                  <button type="button" class="tag-pill" data-lat="47.6062" data-lon="-122.3321" data-name="Seattle, WA">Seattle, WA</button>
+                  <button type="button" class="tag-pill" data-lat="43.6532" data-lon="-79.3832" data-name="Toronto, ON">Toronto, ON</button>
+                </div>
               </div>
             </div>
           </div>
@@ -224,13 +248,13 @@
 
               <div class="two-col-row">
                 <div class="input-box clickable" data-target="screen-location">
-                  <span class="input-label">Location</span>
-                  <strong>Chicago, IL</strong>
+                  <span class="input-label">Location (change)</span>
+                  <strong class="current-location">Chicago, IL</strong>
                 </div>
-                <div class="input-box">
+                <label class="input-box" for="run-date-input">
                   <span class="input-label">Date</span>
-                  <strong class="current-date">Wed, Oct 14</strong>
-                </div>
+                  <input type="date" id="run-date-input" />
+                </label>
               </div>
 
               <div class="two-col-row">
@@ -274,7 +298,7 @@
                 style="display: block"
               >
                 <span class="input-label">Home by · optional</span>
-                <input type="time" id="home-by-input" value="07:15" />
+                <input type="time" id="home-by-input" />
               </label>
 
               <p id="plan-return-status" class="helper-text">
@@ -337,9 +361,9 @@
             <div>
               <strong id="window-summary-time">6:30–7:00 a.m. · 30 min</strong>
               <p>
-                Chicago, IL · <span class="current-date">Wed, Oct 14</span> ·
+                <span class="current-location">Chicago, IL</span> · <span class="current-date">Today</span> ·
                 Edit plan<br />Home by:
-                <span id="window-home-by">7:15 a.m.</span>
+                <span id="window-home-by">None</span>
               </p>
             </div>
           </div>
@@ -347,7 +371,7 @@
           <div class="content-grid">
             <div>
               <!-- Dynamic Mascot Status Banner -->
-              <div id="window-status-card" class="status-banner danger">
+              <div id="window-status-card" class="status-banner clear">
                 <div class="cat-avatar">
                   <svg
                     width="160"
@@ -428,9 +452,9 @@
                   </svg>
                 </div>
                 <div>
-                  <strong id="window-status-title">Reconsider</strong>
+                  <strong id="window-status-title">Checking forecast...</strong>
                   <p id="window-status-desc">
-                    Thunderstorms are in the forecast for this window.
+                    Loading hourly conditions for your planned window.
                   </p>
                 </div>
               </div>
@@ -463,7 +487,7 @@
                     </svg>
                     Temperature</span
                   >
-                  <strong id="win-temp" class="metric-value">63°F</strong>
+                  <strong id="win-temp" class="metric-value">--</strong>
                 </div>
                 <div class="metric-box white-bg">
                   <span class="metric-label">
@@ -491,7 +515,7 @@
                     </svg>
                     Rain chance</span
                   >
-                  <strong id="win-rain" class="metric-value">25%</strong>
+                  <strong id="win-rain" class="metric-value">--%</strong>
                 </div>
                 <div class="metric-box white-bg">
                   <span class="metric-label">
@@ -512,7 +536,7 @@
                     </svg>
                     Wind</span
                   >
-                  <strong id="win-wind" class="metric-value">10 mph</strong>
+                  <strong id="win-wind" class="metric-value">--</strong>
                 </div>
               </div>
             </div>
@@ -522,15 +546,13 @@
 
               <div class="info-box">
                 <strong>Official alerts</strong>
-                <p>No active alerts in this snapshot.</p>
+                <p class="official-alert-text">Checking active alerts...</p>
               </div>
 
               <!-- Dynamically shown when Expected Finish > Home By -->
               <div id="late-return-box" class="alert-box caution hidden">
                 <strong>Return-time feedback</strong>
-                <p id="late-return-text">
-                  This run ends 15 minutes after 7:15 a.m.
-                </p>
+                <p id="late-return-text"></p>
               </div>
 
               <button
@@ -553,6 +575,13 @@
                   Indoor option
                 </button>
               </div>
+
+              <button
+                class="btn btn-outline full-width"
+                data-target="screen-clothing"
+              >
+                Choose clothing for this run
+              </button>
 
               <button
                 class="btn btn-outline full-width"
@@ -601,7 +630,7 @@
                 >6:30–7:00 a.m. · 30 min</strong
               >
               <p>
-                Chicago, IL · <span class="current-date">Wed, Oct 14</span> ·
+                <span class="current-location">Chicago, IL</span> · <span class="current-date">Today</span> ·
                 Edit plan
               </p>
             </div>
@@ -611,99 +640,23 @@
             <div class="card">
               <h3>Forecast detail</h3>
 
-              <div id="alert-box" class="alert-box danger">
-                <strong id="alert-title">Thunderstorms in this window</strong>
-                <p id="alert-desc">
-                  Chance Showers And Thunderstorms. Rain chance: 25%.
-                </p>
+              <div id="alert-box" class="alert-box clear">
+                <strong id="alert-title">Checking conditions...</strong>
+                <p id="alert-desc">Loading forecast detail.</p>
               </div>
 
               <div class="metrics-row">
                 <div class="metric-box">
-                  <span class="metric-label">
-                    <svg
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <g clip-path="url(#clip0_160_25983)">
-                        <path
-                          d="M10 14V5C10 4.46957 10.2107 3.96086 10.5858 3.58579C10.9609 3.21071 11.4696 3 12 3C12.5304 3 13.0391 3.21071 13.4142 3.58579C13.7893 3.96086 14 4.46957 14 5V14C15.0528 14.4595 15.9153 15.2675 16.4424 16.2881C16.9696 17.3087 17.1292 18.4797 16.8945 19.6041C16.6598 20.7286 16.0451 21.738 15.1538 22.4625C14.2624 23.1871 13.1487 23.5826 12 23.5826C10.8513 23.5826 9.73764 23.1871 8.84626 22.4625C7.95488 21.738 7.34017 20.7286 7.10548 19.6041C6.87078 18.4797 7.03043 17.3087 7.55758 16.2881C8.08472 15.2675 8.94721 14.4595 10 14Z"
-                          stroke-width="1.8"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke="#243C35"
-                        />
-                        <path
-                          d="M12 9V18"
-                          stroke-width="1.8"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke="#243C35"
-                        />
-                      </g>
-                      <defs>
-                        <clipPath id="clip0_160_25983">
-                          <rect width="24" height="24" fill="white" />
-                        </clipPath>
-                      </defs>
-                    </svg>
-                    Temperature</span
-                  >
-                  <strong id="temp-value" class="metric-value">63°F</strong>
+                  <span class="metric-label">Temperature</span>
+                  <strong id="temp-value" class="metric-value">--</strong>
                 </div>
                 <div class="metric-box">
-                  <span class="metric-label">
-                    <svg
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M6.99956 13.9999C5.67348 13.8673 4.45439 13.2134 3.61048 12.1819C2.76656 11.1505 2.36695 9.82602 2.49956 8.49993C2.63217 7.17385 3.28613 5.95476 4.31758 5.11085C5.34903 4.26693 6.67348 3.86733 7.99956 3.99993C8.73546 2.85455 9.839 1.99349 11.1289 1.55817C12.4189 1.12285 13.8185 1.13915 15.0979 1.6044C16.3774 2.06966 17.4606 2.95619 18.1696 4.1184C18.8786 5.28062 19.1713 6.6494 18.9996 7.99993C19.7952 7.99993 20.5583 8.316 21.1209 8.87861C21.6835 9.44122 21.9996 10.2043 21.9996 10.9999C21.9996 11.7956 21.6835 12.5586 21.1209 13.1213C20.5583 13.6839 19.7952 13.9999 18.9996 13.9999H6.99956Z"
-                        stroke-width="1.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke="#243C35"
-                      />
-                      <path
-                        d="M8 18L7 21M13 18L12 21M18 18L17 21"
-                        stroke-width="1.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke="#243C35"
-                      />
-                    </svg>
-                    Rain chance</span
-                  >
-                  <strong id="rain-value" class="metric-value">25%</strong>
+                  <span class="metric-label">Rain chance</span>
+                  <strong id="rain-value" class="metric-value">--%</strong>
                 </div>
                 <div class="metric-box">
-                  <span class="metric-label">
-                    <svg
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M3 8H15C15.5933 8 16.1734 7.82405 16.6667 7.49441C17.1601 7.16477 17.5446 6.69623 17.7716 6.14805C17.9987 5.59987 18.0581 4.99667 17.9424 4.41473C17.8266 3.83279 17.5409 3.29824 17.1213 2.87868C16.7018 2.45912 16.1672 2.1734 15.5853 2.05765C15.0033 1.94189 14.4001 2.0013 13.8519 2.22836C13.3038 2.45543 12.8352 2.83994 12.5056 3.33329C12.1759 3.82664 12 4.40666 12 5M3 12H19C19.5933 12 20.1734 12.1759 20.6667 12.5056C21.1601 12.8352 21.5446 13.3038 21.7716 13.852C21.9987 14.4001 22.0581 15.0033 21.9424 15.5853C21.8266 16.1672 21.5409 16.7018 21.1213 17.1213C20.7018 17.5409 20.1672 17.8266 19.5853 17.9424C19.0033 18.0581 18.4001 17.9987 17.8519 17.7716C17.3038 17.5446 16.8352 17.1601 16.5056 16.6667C16.1759 16.1734 16 15.5933 16 15M3 16H10"
-                        stroke-width="1.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke="#243C35"
-                      />
-                    </svg>
-                    Wind</span
-                  >
-                  <strong id="wind-value" class="metric-value"
-                    >10 mph NNE</strong
-                  >
+                  <span class="metric-label">Wind</span>
+                  <strong id="wind-value" class="metric-value">--</strong>
                 </div>
               </div>
 
@@ -730,7 +683,7 @@
                 <strong>Information not included</strong>
                 <p>
                   Sidewalk or trail condition, air quality, and pollen.
-                  Lakefront exposure may differ.
+                  Waterfront or open exposure may differ.
                 </p>
               </div>
             </div>
@@ -740,26 +693,26 @@
         <!-- ================= SCREEN 6: HOURLY FORECAST ================= -->
         <section id="screen-hourly" class="screen">
           <a href="#" class="back-link js-back-btn">&lsaquo; Hourly forecast</a>
-          <h2 class="page-title">Chicago, IL</h2>
+          <h2 class="page-title current-location">Chicago, IL</h2>
           <p class="page-subtitle">
-            <span class="current-date">Wed, Oct 14</span> · NWS point forecast
+            <span class="current-date">Today</span> · <span id="hourly-source-label">Live hourly forecast</span>
           </p>
 
-          <!-- 3-Column Hourly Forecast Cards (Populated dynamically by app.js) -->
+          <!-- Hourly Forecast Cards (Populated dynamically by app.js) -->
           <div id="hourly-cards-grid" class="hourly-grid"></div>
 
           <!-- Alerts & Limits Row -->
           <div class="two-col-row">
             <div class="info-box" style="margin-bottom: 0">
               <strong>Official alerts</strong>
-              <p>No active NWS alerts were listed at the capture time.</p>
+              <p class="official-alert-text">Checking active alerts...</p>
             </div>
 
             <div class="info-box blue-tint" style="margin-bottom: 0">
               <strong>Limits</strong>
               <p>
                 Forecast hours do not establish route or surface condition. The
-                capture does not include air quality or pollen.
+                forecast does not include air quality or pollen.
               </p>
             </div>
           </div>
@@ -768,39 +721,31 @@
             Back
           </button>
         </section>
-      
-        <!-- ================= SCREEN 7: COMPARE START TIMES (UC1) ================= -->
+
+        <!-- ================= SCREEN 7: COMPARE START TIMES ================= -->
         <section id="screen-compare" class="screen">
           <a href="#" class="back-link" data-target="screen-window">&lsaquo; Compare start times</a>
           <h2 class="page-title">Same run, another time</h2>
           <p class="page-subtitle">
-            <span class="current-location">Chicago, IL</span> · <span id="compare-duration-label">30 minutes</span> · Home by <span id="compare-homeby-label">7:15 a.m.</span>
+            <span class="current-location">Chicago, IL</span> · <span id="compare-duration-label">30 minutes</span> · Home by <span id="compare-homeby-label">flexible</span>
           </p>
 
           <div class="content-grid">
             <div class="card">
               <h3>Compare windows</h3>
 
-              <div id="compare-card-1" class="alert-box danger" style="margin-bottom: 14px">
-                <span class="pill-badge danger-pill">Reconsider</span>
-                <strong id="compare-slot1-title" style="font-size: 16px; margin-top: 6px">6:30–7:00 a.m.</strong>
-                <p id="compare-slot1-desc" style="margin-top: 4px">
-                  Thunderstorms in the hourly forecast · 63°F · rain 25% · wind 10 mph NNE
-                </p>
-                <p id="compare-slot1-deadline" style="margin-top: 6px; font-weight: 600">
-                  ✓ Finishes 15 minutes before Home by 7:15 a.m.
-                </p>
+              <div id="compare-card-1" class="alert-box clear" style="margin-bottom: 14px">
+                <span id="compare-badge-1" class="pill-badge clear-pill">Planned</span>
+                <strong id="compare-slot1-title" style="font-size: 16px; margin-top: 6px">--</strong>
+                <p id="compare-slot1-desc" style="margin-top: 4px">--</p>
+                <p id="compare-slot1-deadline" style="margin-top: 6px; font-weight: 600"></p>
               </div>
 
-              <div id="compare-card-2" class="alert-box caution" style="margin-bottom: 0">
-                <span class="pill-badge caution-pill">Use caution</span>
-                <strong id="compare-slot2-title" style="font-size: 16px; margin-top: 6px">7:00–7:30 a.m.</strong>
-                <p id="compare-slot2-desc" style="margin-top: 4px">
-                  Showers remain possible (low chance ≠ dry) · 63°F · rain 22% · wind 10 mph NNE
-                </p>
-                <p id="compare-slot2-deadline" style="margin-top: 6px; font-weight: 600; color: #8c2a22">
-                  ⚠️ Ends 15 minutes after Home by 7:15 a.m.
-                </p>
+              <div id="compare-card-2" class="alert-box clear" style="margin-bottom: 0">
+                <span id="compare-badge-2" class="pill-badge clear-pill">Alternative (+1 hr)</span>
+                <strong id="compare-slot2-title" style="font-size: 16px; margin-top: 6px">--</strong>
+                <p id="compare-slot2-desc" style="margin-top: 4px">--</p>
+                <p id="compare-slot2-deadline" style="margin-top: 6px; font-weight: 600"></p>
               </div>
             </div>
 
@@ -809,13 +754,13 @@
               <div class="info-box blue-tint">
                 <strong>Weather fit vs. schedule fit</strong>
                 <p id="compare-tradeoff-text">
-                  The 7:00 a.m. start has a lower rain chance (22% showers vs. 25% thunderstorms), but its 7:30 a.m. finish misses your 7:15 a.m. deadline by 15 minutes.
+                  Comparing your selected start time with the next hour.
                 </p>
               </div>
 
               <div class="two-col-row">
-                <button class="btn btn-outline" id="btn-use-slot1">Use 6:30 a.m.</button>
-                <button class="btn btn-outline" id="btn-use-slot2">Use 7:00 a.m.</button>
+                <button class="btn btn-outline" id="btn-use-slot1">Use first slot</button>
+                <button class="btn btn-outline" id="btn-use-slot2">Use second slot</button>
               </div>
 
               <button class="btn btn-primary full-width" data-target="screen-indoor">
@@ -828,32 +773,30 @@
           </div>
         </section>
 
-        <!-- ================= SCREEN 8: SAVED INDOOR OPTION (UC1) ================= -->
+        <!-- ================= SCREEN 8: SAVED INDOOR OPTION ================= -->
         <section id="screen-indoor" class="screen">
           <a href="#" class="back-link" data-target="screen-compare">&lsaquo; Saved indoor option</a>
           <h2 class="page-title">Your indoor option is saved</h2>
           <p class="page-subtitle">
-            Keeps your planned workout window without waiting on uncertain storm timing.
+            Keeps your planned workout window without waiting on uncertain outdoor weather.
           </p>
 
           <div class="content-grid">
             <div class="card">
               <h3>Confirmed session</h3>
               <div class="info-box blue-tint">
-                <strong id="indoor-saved-window">Wed, Oct 14 · 6:30–7:00 a.m.</strong>
-                <p id="indoor-saved-meta">
-                  30 minutes indoors · Finish: 7:00 a.m. (Home by 7:15 a.m. preserved)
-                </p>
+                <strong id="indoor-saved-window">--</strong>
+                <p id="indoor-saved-meta">--</p>
               </div>
 
               <div class="info-box">
                 <strong>Before you start</strong>
                 <p>
-                  Prepare for your chosen indoor activity (e.g., home routine or rec center). This confirmation records your personal time block; it does not book a facility.
+                  Prepare for your chosen indoor activity (e.g., treadmill, indoor track, or home routine). This confirmation records your personal time block.
                 </p>
               </div>
 
-              <button class="btn btn-primary full-width" data-target="screen-saved">
+              <button class="btn btn-primary full-width" id="btn-confirm-indoor" data-target="screen-saved">
                 View saved plan &amp; add session note
               </button>
               <button class="btn btn-outline full-width" data-target="screen-compare">
@@ -866,19 +809,19 @@
               <div class="info-box" style="margin-bottom: 0">
                 <strong>Scope reminder</strong>
                 <p>
-                  Choosing an indoor session preserves your routine consistency without penalty or streak loss. Recheck the forecast if you later decide to go outdoors.
+                  Choosing an indoor session preserves your routine consistency. Recheck the live forecast if you later decide to head outdoors.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- ================= SCREEN 9: CHOOSE CLOTHING (UC2) ================= -->
+        <!-- ================= SCREEN 9: CHOOSE CLOTHING ================= -->
         <section id="screen-clothing" class="screen">
           <a href="#" class="back-link" data-target="screen-home">&lsaquo; Clothing</a>
           <h2 class="page-title">Choose clothing</h2>
           <p class="page-subtitle">
-            <span class="current-location">Chicago, IL</span> · <span class="current-date">Wed, Oct 14</span> · <span id="clothing-time-label">7:00 a.m. start</span> · Clothing preparation only
+            <span class="current-location">Chicago, IL</span> · <span class="current-date">Today</span> · <span id="clothing-time-label">Planned start</span> · <span id="clothing-weather-label">--</span>
           </p>
 
           <div class="content-grid">
@@ -895,7 +838,7 @@
                 </button>
               </div>
 
-              <span class="section-label">Clothing preference (personal warmth, not weather)</span>
+              <span class="section-label">Clothing preference (personal warmth)</span>
               <div class="three-col-row">
                 <button type="button" class="choice-btn" id="pref-cooler" data-pref="cooler">
                   Cooler (Lighter)
@@ -910,47 +853,42 @@
 
               <div class="info-box blue-tint" style="margin-top: 14px; margin-bottom: 0">
                 <strong>Why the suggestion changes</strong>
-                <p id="clothing-reason-text">
-                  Walking breaks can feel cooler after warming up. Consider a removable light layer (like a light zip top or hoodie you can tie around your waist).
-                </p>
+                <p id="clothing-reason-text"></p>
               </div>
             </div>
 
             <div class="card">
-              <h3>Recommended Clothes to wear</h3>
-              <p class="helper-text" style="margin-top: 0; margin-bottom: 16px">
-                
-              </p>
+              <h3>Recommended clothes to wear</h3>
 
               <label class="gear-check-row" for="gear-base">
                 <input type="checkbox" id="gear-base" checked />
                 <div>
-                  <strong id="gear-base-title">Light running top</strong>
-                  <p id="gear-base-desc">Breathable short-sleeve or tank base layer for 63°F.</p>
+                  <strong id="gear-base-title">Base layer</strong>
+                  <p id="gear-base-desc"></p>
                 </div>
               </label>
 
               <label class="gear-check-row" for="gear-layer">
-                <input type="checkbox" id="gear-layer" checked />
+                <input type="checkbox" id="gear-layer" />
                 <div>
-                  <strong id="gear-layer-title">Removable light layer</strong>
-                  <p id="gear-layer-desc">Useful during walking breaks; easy to remove once warm.</p>
+                  <strong id="gear-layer-title">Removable mid/outer layer</strong>
+                  <p id="gear-layer-desc"></p>
                 </div>
               </label>
 
               <label class="gear-check-row" for="gear-shell">
                 <input type="checkbox" id="gear-shell" />
                 <div>
-                  <strong id="gear-shell-title">Rain-resistant outer layer</strong>
-                  <p id="gear-shell-desc">Optional for 22% shower chance; can trap heat if humid (90%).</p>
+                  <strong id="gear-shell-title">Weather-resistant shell</strong>
+                  <p id="gear-shell-desc"></p>
                 </div>
               </label>
 
               <label class="gear-check-row" for="gear-acc">
                 <input type="checkbox" id="gear-acc" />
                 <div>
-                  <strong id="gear-acc-title">Personal visibility / eye protection</strong>
-                  <p id="gear-acc-desc">Brimmed cap for glasses in drizzle or reflective vest near dusk.</p>
+                  <strong id="gear-acc-title">Accessories &amp; visibility</strong>
+                  <p id="gear-acc-desc"></p>
                 </div>
               </label>
 
@@ -969,15 +907,15 @@
           <a href="#" class="back-link" data-target="screen-clothing">&lsaquo; Saved plan &amp; notes</a>
           <h2 class="page-title">Clothing &amp; session notes</h2>
           <p class="page-subtitle">
-            Review your locked preparation and record a quick reflection on what worked or didn't.
+            Review your saved preparation and record a reflection on what worked or didn't.
           </p>
 
           <div class="content-grid">
             <div class="card">
               <h3>Saved preparation summary</h3>
               <div class="info-box blue-tint">
-                <strong id="saved-plan-header">Chicago, IL · Wed, Oct 14 · 7:00 a.m. start</strong>
-                <p id="saved-plan-mode">Activity: Run-walk · Preference: Usual · Outdoor preparation</p>
+                <strong id="saved-plan-header">Chicago, IL · Today</strong>
+                <p id="saved-plan-mode">Activity: Run-walk · Preference: Usual</p>
               </div>
 
               <div class="info-box saved-session-box hidden" id="saved-session-box">
@@ -995,7 +933,7 @@
                   <span class="run-live-badge" id="active-run-badge">LIVE</span>
                 </div>
                 <div class="timer-display" id="run-timer-display">00:00</div>
-                <p class="timer-caption" id="run-timer-caption">Elapsed · 30:00 remaining</p>
+                <p class="timer-caption" id="run-timer-caption">Elapsed · -- remaining</p>
                 <div class="timer-track">
                   <span id="run-timer-progress"></span>
                 </div>
@@ -1006,16 +944,13 @@
 
               <div class="info-box">
                 <strong>Selected clothing items</strong>
-                <ul id="saved-gear-list" class="clean-list">
-                  <li>✓ Light running top (base layer)</li>
-                  <li>✓ Removable light layer (for walking breaks)</li>
-                </ul>
+                <ul id="saved-gear-list" class="clean-list"></ul>
               </div>
 
               <div class="info-box" style="margin-bottom: 12px">
                 <strong>What isn't covered here</strong>
                 <p>
-                  Saving clothing does not clear weather warnings or check trail mud, ice, pollen, or potential harsh UV exposures.
+                  Saving clothing does not clear weather warnings or check trail mud, ice, pollen, or UV index.
                 </p>
               </div>
 
@@ -1027,20 +962,17 @@
 
             <div class="card">
               <h3>Session reflection</h3>
-              <p class="helper-text" style="margin-top: 0">
-                
-              </p>
 
               <div class="tag-pills-row" id="annotation-tags">
                 <button type="button" class="tag-pill active" data-tag="😄 Layering worked">😄 Layering worked</button>
                 <button type="button" class="tag-pill" data-tag="🥵 Too warm after 10m">🥵 Too warm after 10m</button>
                 <button type="button" class="tag-pill" data-tag="🥶 Chilly on walk breaks">🥶 Chilly on walk breaks</button>
-                <button type="button" class="tag-pill" data-tag="💨 Wind was breezy">💨 Windy / needed cap</button>
+                <button type="button" class="tag-pill" data-tag="💨 Windy / needed cap">💨 Windy / needed cap</button>
               </div>
 
               <label class="input-box" for="session-note-input" style="display: block; margin-top: 10px">
                 <span class="input-label">Session note (What worked / What didn't)</span>
-                <textarea id="session-note-input" rows="2" placeholder="e.g., Light zip layer was great for walk breaks; skip heavy sweatshirt at 63°F.">Walking breaks felt cooler; tying the removable light layer around my waist during running stretches worked much better than a heavy hoodie.</textarea>
+                <textarea id="session-note-input" rows="3" placeholder="e.g., Light zip layer was great for walk breaks; skip heavy sweatshirt next time."></textarea>
               </label>
 
               <button type="button" class="btn btn-primary full-width" id="btn-add-annotation">
@@ -1052,39 +984,26 @@
           </div>
         </section>
 
-        <!-- ================= SCREEN 11: PREFERENCES & DEMO CONTROLS (R08/R09) ================= -->
+        <!-- ================= SCREEN 11: USER PREFERENCES & LIVE DATA ================= -->
         <section id="screen-preferences" class="screen">
-          <a href="#" class="back-link" data-target="screen-home">&lsaquo; Preferences &amp; Demo Controls</a>
-          <h2 class="page-title">Preferences &amp; Demo Scenarios</h2>
+          <a href="#" class="back-link" data-target="screen-home">&lsaquo; Preferences</a>
+          <h2 class="page-title">Preferences &amp; Weather Feed</h2>
           <p class="page-subtitle">
-            Switch weather snapshots for live classroom demos (including R09 API failure state) and set units.
+            Manage your units, live weather feed, and locally stored session data.
           </p>
 
           <div class="content-grid">
             <div class="card">
-              <h3>Demo weather scenario preset</h3>
-              <p class="helper-text" style="margin-top: 0">
-                Guarantees deterministic weather data during live demos even when current Chicago weather differs from the study scenario.
-              </p>
-
-              <div class="stack-column" id="scenario-buttons">
-                <button type="button" class="choice-btn active full-width" data-scenario="oct14_thunderstorm" style="text-align: left">
-                  <strong>1. Study Scenario: Wed, Oct 14 Thunderstorms (Default)</strong><br />
-                  <span style="font-size: 12px; font-weight: 400; color: #4a544c">6:00 a.m. 63°F (25% Thunderstorms · Reconsider) → 7:00 a.m. 63°F (22% Showers · Use caution)</span>
-                </button>
-                <button type="button" class="choice-btn full-width" data-scenario="alerts_unavailable" style="text-align: left; margin-top: 8px">
-                  <strong>2. R09 Failure Mode: Alerts Check Failed</strong><br />
-                  <span style="font-size: 12px; font-weight: 400; color: #4a544c">Simulates NWS alert endpoint failure; preserves runner's plan and flags missing check</span>
-                </button>
-                <button type="button" class="choice-btn full-width" data-scenario="lakefront_wind" style="text-align: left; margin-top: 8px">
-                  <strong>3. Clear &amp; Breezy Lakefront Run (P01)</strong><br />
-                  <span style="font-size: 12px; font-weight: 400; color: #4a544c">54–58°F, 10% rain, 15 mph ENE wind · Good window to run</span>
-                </button>
-                <button type="button" class="choice-btn full-width" data-scenario="live_nws" style="text-align: left; margin-top: 8px">
-                  <strong>4. Live NWS API Fetch (Chicago LOT/76,73)</strong><br />
-                  <span style="font-size: 12px; font-weight: 400; color: #4a544c">Pulls real-time hourly periods from api.weather.gov</span>
-                </button>
+              <h3>Live weather feed</h3>
+              <div class="info-box blue-tint">
+                <strong id="pref-weather-source">Fetching live weather...</strong>
+                <p id="pref-weather-details">Coordinates and station details will appear here.</p>
               </div>
+
+              <button type="button" class="btn btn-primary full-width" id="btn-refresh-weather">
+                Refresh live forecast now
+              </button>
+              <p id="refresh-feedback" class="action-feedback" role="status"></p>
             </div>
 
             <div class="card">
@@ -1095,21 +1014,24 @@
                 <button type="button" class="choice-btn" id="unit-c" data-unit="C">Celsius (°C)</button>
               </div>
 
-              <div class="info-box blue-tint" style="margin-top: 12px; margin-bottom: 0">
+              <div class="info-box blue-tint" style="margin-top: 12px">
                 <strong>Local privacy &amp; ownership</strong>
                 <p>
-                  Your planned runs, clothing checkboxes, and session annotations are stored locally on this device. No account or cloud tracking required.
+                  Your planned runs, clothing checkboxes, and session notes are stored in your browser's local storage on this device. No account or cloud tracking is used.
                 </p>
               </div>
+
+              <button type="button" class="btn btn-outline full-width" id="btn-clear-data">
+                Clear saved notes &amp; reset preferences
+              </button>
             </div>
           </div>
         </section>
-
       </main>
 
       <footer class="footer">
-        <span id="nws-timestamp">NWS · retrieved Oct 14, 12:09 a.m. CDT</span>
-        <span>Plan</span>
+        <span id="nws-timestamp">Fetching live weather...</span>
+        <span class="current-location">Chicago, IL</span>
       </footer>
     </div>
 

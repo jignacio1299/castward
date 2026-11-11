@@ -729,3 +729,68 @@ body {
   color: #1e2420;
   line-height: 1.4;
 }
+
+/* Live Location Search & Production UI Additions */
+.clear-pill {
+  background: #24583c;
+  color: #ffffff;
+}
+
+.search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.search-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.search-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #d4dad1;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.search-result-item:hover {
+  border-color: #2c6e49;
+  background: #f0f8f2;
+}
+
+.search-result-item strong {
+  font-size: 13px;
+  color: #1e2420;
+}
+
+.search-result-item span {
+  font-size: 11px;
+  color: #6c756b;
+}
+
+.delete-note-btn {
+  background: none;
+  border: none;
+  color: #8c2a22;
+  font-size: 14px;
+  font-weight: 700;
+  margin-left: 6px;
+  cursor: pointer;
+  line-height: 1;
+}
