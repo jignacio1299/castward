@@ -816,3 +816,14 @@ body {
   cursor: pointer;
   line-height: 1;
 }
+
+.precip-pill {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  color: #224268;
+  background-color: #e9eff5;
+  padding: 4px 10px;
+  border-radius: 999px;
+}

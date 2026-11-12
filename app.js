@@ -1,4 +1,4 @@
-// Castward - Production Client Application (Live Weather, Geolocation & Local Persistence)
+// Castward - Production Client Application (Live Weather, Precip Intensity, Geolocation & Local Persistence)
 const STORAGE_KEY = "castward_user_state_v1";
 
 function getDefaultDateString() {
@@ -44,7 +44,7 @@ let weatherState = {
   retrievedAt: "Fetching live forecast...",
   alertStatus: "checking", // "clear" | "active" | "failed"
   alertHeadline: "Checking active weather alerts...",
-  hours: [] // Normalized hourly objects: { timeISO, dateStr, hour24, tempF, rain, windSpeedMph, windSpeedLabel, windDir, shortForecast, humidity }
+  hours: [] // Normalized hourly objects: { timeISO, dateStr, hour24, tempF, rain, precipMm, windSpeedMph, windSpeedLabel, windDir, shortForecast, humidity }
 };
 
 let previousScreen = "screen-home";
@@ -176,7 +176,7 @@ function formatMinutesTo24HrInput(totalMinutes) {
   return `${hours24}:${mins}`;
 }
 
-// 3. Live Weather Fetching (NWS primary for US + Open-Meteo fallback globally)
+// 3. Precipitation Intensity & NWS Grid Helpers
 function degreesToCardinal(deg) {
   if (deg === null || deg === undefined) return "";
   const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
@@ -210,6 +210,78 @@ function wmoCodeToText(code) {
   return map[code] || "Mixed Conditions";
 }
 
+function parseIsoDurationHours(durationStr) {
+  if (!durationStr) return 1;
+  const match = durationStr.match(/P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?/);
+  if (!match) return 1;
+  const days = parseInt(match[1] || "0", 10);
+  const hours = parseInt(match[2] || "0", 10);
+  const mins = parseInt(match[3] || "0", 10);
+  return Math.max(1, days * 24 + hours + mins / 60);
+}
+
+function buildHourlyPrecipLookup(qpfValues) {
+  const intervals = (qpfValues || []).map((entry) => {
+    const [startIso, durationStr] = String(entry.validTime || "").split("/");
+    const startMs = Date.parse(startIso);
+    const durationHrs = parseIsoDurationHours(durationStr);
+    const endMs = startMs + durationHrs * 3600000;
+    const mmPerHour = (entry.value ?? 0) / durationHrs;
+    return { startMs, endMs, mmPerHour };
+  });
+
+  return (targetIso) => {
+    const targetMs = Date.parse(targetIso);
+    if (Number.isNaN(targetMs)) return 0;
+    const hit = intervals.find((iv) => targetMs >= iv.startMs && targetMs < iv.endMs);
+    return hit ? hit.mmPerHour : 0;
+  };
+}
+
+function formatPrecipIntensity(precipMm, popPercent) {
+  if (popPercent < 10 && precipMm < 0.1) {
+    return {
+      label: "Dry",
+      amountText: appState.units === "C" ? "0.0 mm/hr" : "0.00 in/hr",
+      shortText: "Dry"
+    };
+  }
+
+  const inches = precipMm / 25.4;
+  const amountText =
+    appState.units === "C"
+      ? `${precipMm < 0.1 ? "<0.1" : precipMm.toFixed(1)} mm/hr`
+      : `${inches < 0.01 ? "<0.01" : inches.toFixed(2)} in/hr`;
+
+  if (precipMm < 0.25) {
+    return {
+      label: "Trace / mist",
+      amountText,
+      shortText: `Trace (${amountText})`
+    };
+  }
+  if (precipMm < 2.5) {
+    return {
+      label: "Light rain",
+      amountText,
+      shortText: `Light · ${amountText}`
+    };
+  }
+  if (precipMm < 7.6) {
+    return {
+      label: "Moderate rain",
+      amountText,
+      shortText: `Moderate · ${amountText}`
+    };
+  }
+  return {
+    label: "Heavy rain",
+    amountText,
+    shortText: `Heavy · ${amountText}`
+  };
+}
+
+// 4. Live Weather Fetching (NWS primary for US + Open-Meteo fallback globally)
 async function fetchLiveWeatherForLocation(lat, lon) {
   weatherState.loading = true;
   weatherState.error = null;
@@ -219,7 +291,7 @@ async function fetchLiveWeatherForLocation(lat, lon) {
   const roundedLon = Number(lon).toFixed(4);
   const nowStr = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-  // Attempt National Weather Service (NWS) API first (covers US locations with official alerts)
+  // Attempt National Weather Service (NWS) API first (covers US locations with official alerts & QPF grid)
   try {
     const pointRes = await fetch(`https://api.weather.gov/points/${roundedLat},${roundedLon}`, {
       headers: { Accept: "application/geo+json" }
@@ -228,13 +300,17 @@ async function fetchLiveWeatherForLocation(lat, lon) {
     if (pointRes.ok) {
       const pointData = await pointRes.json();
       const forecastHourlyUrl = pointData.properties?.forecastHourly;
+      const forecastGridUrl = pointData.properties?.forecastGridData;
       const gridId = pointData.properties?.gridId;
       const gridX = pointData.properties?.gridX;
       const gridY = pointData.properties?.gridY;
 
       if (forecastHourlyUrl) {
-        const [hourlyRes, alertsRes] = await Promise.allSettled([
+        const [hourlyRes, gridRes, alertsRes] = await Promise.allSettled([
           fetch(forecastHourlyUrl, { headers: { Accept: "application/geo+json" } }),
+          forecastGridUrl
+            ? fetch(forecastGridUrl, { headers: { Accept: "application/geo+json" } })
+            : Promise.reject("No grid URL"),
           fetch(`https://api.weather.gov/alerts/active?point=${roundedLat},${roundedLon}`, {
             headers: { Accept: "application/geo+json" }
           })
@@ -244,7 +320,14 @@ async function fetchLiveWeatherForLocation(lat, lon) {
           const hourlyData = await hourlyRes.value.json();
           const periods = hourlyData.properties?.periods || [];
 
-          weatherState.hours = periods.slice(0, 48).map((p) => {
+          let getPrecipMmForIso = () => 0;
+          if (gridRes.status === "fulfilled" && gridRes.value.ok) {
+            const gridData = await gridRes.value.json();
+            const qpfValues = gridData.properties?.quantitativePrecipitation?.values || [];
+            getPrecipMmForIso = buildHourlyPrecipLookup(qpfValues);
+          }
+
+          weatherState.hours = periods.slice(0, 72).map((p) => {
             const dt = new Date(p.startTime);
             const year = dt.getFullYear();
             const month = String(dt.getMonth() + 1).padStart(2, "0");
@@ -258,6 +341,7 @@ async function fetchLiveWeatherForLocation(lat, lon) {
               hour24: dt.getHours(),
               tempF: p.temperatureUnit === "C" ? Math.round((p.temperature * 9) / 5 + 32) : p.temperature,
               rain: p.probabilityOfPrecipitation?.value ?? 0,
+              precipMm: getPrecipMmForIso(p.startTime),
               windSpeedMph: windMph,
               windSpeedLabel: p.windSpeed || `${windMph} mph`,
               windDir: p.windDirection || "",
@@ -266,7 +350,6 @@ async function fetchLiveWeatherForLocation(lat, lon) {
             };
           });
 
-          // Process official NWS alerts
           if (alertsRes.status === "fulfilled" && alertsRes.value.ok) {
             const alertsData = await alertsRes.value.json();
             const features = alertsData.features || [];
@@ -297,9 +380,9 @@ async function fetchLiveWeatherForLocation(lat, lon) {
     console.info("NWS endpoint unavailable for coordinates, falling back to Open-Meteo:", nwsErr);
   }
 
-  // Fallback to Open-Meteo API (works worldwide, no API key required)
+  // Fallback to Open-Meteo API (works worldwide, includes hourly precipitation volume)
   try {
-    const omUrl = `https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLon}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=3`;
+    const omUrl = `https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLon}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=3`;
     const omRes = await fetch(omUrl);
     if (!omRes.ok) throw new Error(`Weather request failed (${omRes.status})`);
     const omData = await omRes.json();
@@ -317,6 +400,7 @@ async function fetchLiveWeatherForLocation(lat, lon) {
         hour24,
         tempF: Math.round(omData.hourly.temperature_2m?.[idx] ?? 60),
         rain: Math.round(omData.hourly.precipitation_probability?.[idx] ?? 0),
+        precipMm: Number(omData.hourly.precipitation?.[idx] ?? 0),
         windSpeedMph: windMph,
         windSpeedLabel: `${windMph} mph`,
         windDir,
@@ -341,7 +425,7 @@ async function fetchLiveWeatherForLocation(lat, lon) {
   }
 }
 
-// 4. Match Selected Date & Hour to Live Forecast
+// 5. Match Selected Date & Hour to Live Forecast
 function getHourData(targetHour24, targetDateStr) {
   const dateStr = targetDateStr || document.getElementById("run-date-input")?.value || getDefaultDateString();
   if (weatherState.hours.length > 0) {
@@ -359,6 +443,7 @@ function getHourData(targetHour24, targetDateStr) {
   return {
     tempF: null,
     rain: 0,
+    precipMm: 0,
     windSpeedMph: 0,
     windSpeedLabel: "-- mph",
     windDir: "",
@@ -379,11 +464,13 @@ function classifyWindowCondition(hourObj) {
   }
 
   const forecastLower = hourObj.shortForecast.toLowerCase();
+  const precipInfo = formatPrecipIntensity(hourObj.precipMm ?? 0, hourObj.rain);
+
   if (
     weatherState.alertStatus === "active" ||
     forecastLower.includes("thunder") ||
     forecastLower.includes("severe") ||
-    hourObj.rain >= 60 ||
+    (hourObj.precipMm ?? 0) >= 5.0 ||
     hourObj.windSpeedMph >= 25
   ) {
     return {
@@ -394,7 +481,7 @@ function classifyWindowCondition(hourObj) {
       desc:
         weatherState.alertStatus === "active"
           ? weatherState.alertHeadline
-          : `${hourObj.shortForecast} (${hourObj.rain}% precipitation, wind ${hourObj.windSpeedLabel}).`
+          : `${hourObj.shortForecast} (${hourObj.rain}% chance · ${precipInfo.shortText}, wind ${hourObj.windSpeedLabel}).`
     };
   }
 
@@ -412,7 +499,7 @@ function classifyWindowCondition(hourObj) {
       badgeClass: "caution-pill",
       badgeText: "Use caution",
       title: "Use caution",
-      desc: `${hourObj.shortForecast}. Rain chance is ${hourObj.rain}% with ${hourObj.windSpeedLabel} wind.`
+      desc: `${hourObj.shortForecast} (${hourObj.rain}% chance · ${precipInfo.shortText}). Wind ${hourObj.windSpeedLabel}.`
     };
   }
 
@@ -425,7 +512,7 @@ function classifyWindowCondition(hourObj) {
   };
 }
 
-// 5. Update All UI Screens with Live Data
+// 6. Update All UI Screens with Live Data
 function updateLocationAndDateLabels() {
   const dateInputEl = document.getElementById("run-date-input");
   const dateLabel = formatDateLabel(dateInputEl?.value || getDefaultDateString());
@@ -531,21 +618,22 @@ function updateRunCalculations() {
 
 function renderWeatherForHour(targetHour24, dateStr) {
   const h = getHourData(targetHour24, dateStr);
+  const precipInfo = formatPrecipIntensity(h.precipMm ?? 0, h.rain);
 
   const previewEl = document.getElementById("home-weather-preview");
   if (previewEl) {
     previewEl.textContent =
       h.tempF !== null
-        ? `Currently ${formatTemp(h.tempF)} · ${h.shortForecast} in ${appState.location.name}`
+        ? `Currently ${formatTemp(h.tempF)} · ${h.shortForecast} (${h.rain}% · ${precipInfo.shortText})`
         : weatherState.error || "Loading forecast...";
   }
 
   document.getElementById("win-temp").textContent = formatTemp(h.tempF);
-  document.getElementById("win-rain").textContent = `${h.rain}%`;
+  document.getElementById("win-rain").textContent = `${h.rain}% (${precipInfo.label})`;
   document.getElementById("win-wind").textContent = h.windSpeedLabel;
 
   document.getElementById("temp-value").textContent = formatTemp(h.tempF);
-  document.getElementById("rain-value").textContent = `${h.rain}%`;
+  document.getElementById("rain-value").textContent = `${h.rain}% · ${precipInfo.amountText}`;
   document.getElementById("wind-value").textContent = `${h.windSpeedLabel} ${h.windDir}`.trim();
 
   const windowCard = document.getElementById("window-status-card");
@@ -569,7 +657,7 @@ function renderWeatherForHour(targetHour24, dateStr) {
     windowTitle.textContent = "Alerts check unavailable";
     windowDesc.textContent = "Official alert status could not be verified. Hourly forecast values are shown below.";
     alertTitle.textContent = "Alerts not verified";
-    alertDesc.textContent = `${h.shortForecast}. Rain chance: ${h.rain}%. Do not read a failed alert check as an absence of alerts.`;
+    alertDesc.textContent = `${h.shortForecast}. Rain: ${h.rain}% (${precipInfo.shortText}). Do not read a failed alert check as an absence of alerts.`;
     return;
   }
 
@@ -579,10 +667,10 @@ function renderWeatherForHour(targetHour24, dateStr) {
   windowTitle.textContent = status.title;
   windowDesc.textContent = status.desc;
   alertTitle.textContent = status.title;
-  alertDesc.textContent = `${h.shortForecast}. Rain chance: ${h.rain}%, Humidity: ${h.humidity}%.`;
+  alertDesc.textContent = `${h.shortForecast}. Rain: ${h.rain}% (${precipInfo.shortText}), Humidity: ${h.humidity}%.`;
 }
 
-// 6. Dynamic Compare Start Times Screen
+// 7. Dynamic Compare Start Times Screen
 function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
   const slot1End = startMins + durationInput;
   const slot2Start = (startMins + 60) % 1440;
@@ -595,6 +683,8 @@ function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
 
   const h1 = getHourData(Math.floor(startMins / 60), dateStr);
   const h2 = getHourData(Math.floor(slot2Start / 60), dateStr);
+  const p1 = formatPrecipIntensity(h1.precipMm ?? 0, h1.rain);
+  const p2 = formatPrecipIntensity(h2.precipMm ?? 0, h2.rain);
   const cond1 = classifyWindowCondition(h1);
   const cond2 = classifyWindowCondition(h2);
 
@@ -616,7 +706,7 @@ function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
   document.getElementById("compare-slot1-title").textContent = s1Text;
   document.getElementById("compare-slot1-desc").textContent = `${h1.shortForecast} · ${formatTemp(
     h1.tempF
-  )} · rain ${h1.rain}% · wind ${h1.windSpeedLabel} ${h1.windDir}`.trim();
+  )} · rain ${h1.rain}% (${p1.shortText}) · wind ${h1.windSpeedLabel} ${h1.windDir}`.trim();
 
   const c1Dead = document.getElementById("compare-slot1-deadline");
   if (homeByMins !== null) {
@@ -638,7 +728,7 @@ function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
   document.getElementById("compare-slot2-title").textContent = s2Text;
   document.getElementById("compare-slot2-desc").textContent = `${h2.shortForecast} · ${formatTemp(
     h2.tempF
-  )} · rain ${h2.rain}% · wind ${h2.windSpeedLabel} ${h2.windDir}`.trim();
+  )} · rain ${h2.rain}% (${p2.shortText}) · wind ${h2.windSpeedLabel} ${h2.windDir}`.trim();
 
   const c2Dead = document.getElementById("compare-slot2-deadline");
   if (homeByMins !== null) {
@@ -658,10 +748,10 @@ function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
     const tempDiff = (h2.tempF ?? 0) - (h1.tempF ?? 0);
     const rainPhrase =
       rainDiff === 0
-        ? `the same rain chance (${h2.rain}%)`
+        ? `the same rain chance (${h2.rain}% · ${p2.label.toLowerCase()})`
         : rainDiff < 0
-        ? `a lower rain chance (${h2.rain}% vs. ${h1.rain}%)`
-        : `a higher rain chance (${h2.rain}% vs. ${h1.rain}%)`;
+        ? `a lower rain chance (${h2.rain}% · ${p2.label.toLowerCase()} vs. ${h1.rain}%)`
+        : `a higher rain chance (${h2.rain}% · ${p2.label.toLowerCase()} vs. ${h1.rain}%)`;
     const tempPhrase =
       tempDiff === 0
         ? `the same temperature (${formatTemp(h2.tempF)})`
@@ -700,16 +790,24 @@ document.getElementById("btn-use-slot2")?.addEventListener("click", () => {
   showScreen("screen-window");
 });
 
-// 7. Render 3-Hour Cards on Hourly Forecast Screen
+// 8. Render 24-Hour Scrollable Cards on Hourly Forecast Screen
 function renderHourlyForecastCards(startHour24, dateStr) {
   const grid = document.getElementById("hourly-cards-grid");
   if (!grid) return;
 
+  const [y, m, d] = dateStr.split("-").map(Number);
+
   const cardsHtml = Array.from({ length: 24 }, (_, offset) => offset)
     .map((offset) => {
-      const hour24 = (startHour24 + offset) % 24;
+      const slotDate = new Date(y, m - 1, d, startHour24 + offset);
+      const slotDateStr = `${slotDate.getFullYear()}-${String(slotDate.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}-${String(slotDate.getDate()).padStart(2, "0")}`;
+      const hour24 = slotDate.getHours();
       const timeLabel = formatMinutesTo12Hr(hour24 * 60);
-      const h = getHourData(hour24, dateStr);
+      const h = getHourData(hour24, slotDateStr);
+      const precipInfo = formatPrecipIntensity(h.precipMm ?? 0, h.rain);
       const fLower = h.shortForecast.toLowerCase();
       const icon = fLower.includes("thunder")
         ? "⛈️"
@@ -718,12 +816,14 @@ function renderHourlyForecastCards(startHour24, dateStr) {
         : fLower.includes("clear") || fLower.includes("sunny")
         ? "☀️"
         : "⛅";
+      const activeClass = offset === 0 ? " active-start-hour" : "";
 
       return `
-      <div class="hour-card">
+      <div class="hour-card${activeClass}">
         <strong class="hour-time">${timeLabel}</strong>
         <span class="hour-icon">${icon}</span>
         <strong class="hour-main">${formatTemp(h.tempF)} · rain ${h.rain}%</strong>
+        <span class="precip-pill">${precipInfo.shortText}</span>
         <p class="hour-desc">${h.windSpeedLabel} ${h.windDir} · ${h.shortForecast}</p>
         <span class="hour-humidity">Humidity: ${h.humidity}%</span>
       </div>
@@ -734,11 +834,12 @@ function renderHourlyForecastCards(startHour24, dateStr) {
   grid.innerHTML = cardsHtml;
 }
 
-// 8. Dynamic Weather-Aware Clothing Logic
+// 9. Dynamic Weather-Aware Clothing Logic
 function updateClothingRecommendations(targetHour24, dateStr) {
   const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
   const hour24 = targetHour24 !== undefined ? targetHour24 : Math.floor(startMins / 60);
   const h = getHourData(hour24, dateStr);
+  const precipInfo = formatPrecipIntensity(h.precipMm ?? 0, h.rain);
 
   const act = appState.activity;
   const pref = appState.clothingPref;
@@ -753,7 +854,9 @@ function updateClothingRecommendations(targetHour24, dateStr) {
   const weatherLabel = document.getElementById("clothing-weather-label");
   if (weatherLabel) {
     weatherLabel.textContent =
-      h.tempF !== null ? `${formatTemp(h.tempF)}, ${h.rain}% rain, ${h.windSpeedLabel} wind` : "Live weather";
+      h.tempF !== null
+        ? `${formatTemp(h.tempF)}, ${h.rain}% rain (${precipInfo.label}), ${h.windSpeedLabel} wind`
+        : "Live weather";
   }
 
   // Compute effective temperature feel based on preference and activity
@@ -795,7 +898,7 @@ function updateClothingRecommendations(targetHour24, dateStr) {
   }
 
   shellTitle.textContent = "Water/wind-resistant outer shell";
-  shellDesc.textContent = `Current rain chance is ${h.rain}% with ${h.windSpeedLabel} wind (${h.humidity}% humidity).`;
+  shellDesc.textContent = `Current rain chance is ${h.rain}% (${precipInfo.shortText}) with ${h.windSpeedLabel} wind (${h.humidity}% humidity).`;
 
   accTitle.textContent =
     rawTempF < 45 ? "Gloves, headband & visibility gear" : "Brimmed cap, sunglasses & visibility gear";
@@ -818,7 +921,7 @@ function updateClothingRecommendations(targetHour24, dateStr) {
 
   // Set smart defaults for checkboxes unless manually overridden by the user
   const defaultLayer = effectiveTempF < 58 || (act === "run-walk" && effectiveTempF < 66);
-  const defaultShell = h.rain >= 30 || h.windSpeedMph >= 18;
+  const defaultShell = (h.rain >= 30 && (h.precipMm ?? 0) >= 0.25) || h.rain >= 60 || h.windSpeedMph >= 18;
   const defaultAcc = rawTempF < 45 || h.rain >= 20 || h.windSpeedMph >= 15;
 
   const defaults = {
@@ -898,7 +1001,7 @@ function updateSavedClothingSummary() {
     : "<li>No clothing items checked</li>";
 }
 
-// 9. Active Run Timer & Saved Sessions
+// 10. Active Run Timer & Saved Sessions
 function getCurrentRunSummary() {
   const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
   const duration = parseInt(document.getElementById("duration-input")?.value, 10) || 30;
@@ -1028,7 +1131,7 @@ document.getElementById("btn-finish-run")?.addEventListener("click", () => {
   updateActiveRunTimer();
 });
 
-// 10. Session Reflections (Persisted in localStorage)
+// 11. Session Reflections (Persisted in localStorage)
 function renderAnnotations() {
   const feed = document.getElementById("annotations-history");
   if (!feed) return;
@@ -1044,8 +1147,7 @@ function renderAnnotations() {
       <div class="annotation-item">
         <div class="ann-meta">
           <span class="ann-tag">${a.feelingTag}</span>
-          <span>${a.date}</span>
-          <span> <button type="button" class="delete-note-btn" data-delete-id="${a.id}" title="Delete note">41.8789,-87.6358&times;</button> </span>
+          <span>${a.date} <button type="button" class="delete-note-btn" data-delete-id="${a.id}" title="Delete note">&times;</button></span>
         </div>
         <p><strong>${a.gearSummary}:</strong> ${a.note}</p>
       </div>
@@ -1099,7 +1201,7 @@ document.getElementById("btn-add-annotation")?.addEventListener("click", () => {
   renderAnnotations();
 });
 
-// 11. Location Search & Browser Geolocation
+// 12. Location Search & Browser Geolocation
 function selectLocation(name, lat, lon) {
   appState.location = { name, lat: Number(lat), lon: Number(lon) };
   saveState();
@@ -1208,7 +1310,7 @@ document.getElementById("btn-use-geolocation")?.addEventListener("click", () => 
   );
 });
 
-// 12. Preferences & Live Refresh Controls
+// 13. Preferences & Live Refresh Controls
 document.querySelectorAll("[data-unit]").forEach((btn) => {
   btn.classList.toggle("active", btn.dataset.unit === appState.units);
   btn.addEventListener("click", () => {
@@ -1238,7 +1340,7 @@ document.getElementById("btn-clear-data")?.addEventListener("click", () => {
   if (fb) fb.textContent = "Saved notes and preferences have been reset.";
 });
 
-// 13. Inputs & App Initialization
+// 14. Inputs & App Initialization
 ["run-date-input", "start-time-input", "duration-input", "home-by-input"].forEach((id) => {
   const el = document.getElementById(id);
   if (el) el.addEventListener("input", updateRunCalculations);
