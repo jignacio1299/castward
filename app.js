@@ -1044,7 +1044,8 @@ function renderAnnotations() {
       <div class="annotation-item">
         <div class="ann-meta">
           <span class="ann-tag">${a.feelingTag}</span>
-          <span>${a.date} <button type="button" class="delete-note-btn" data-delete-id="${a.id}" title="Delete note">&times;</button></span>
+          <span>${a.date}</span>
+          <span> <button type="button" class="delete-note-btn" data-delete-id="${a.id}" title="Delete note">41.8789,-87.6358&times;</button> </span>
         </div>
         <p><strong>${a.gearSummary}:</strong> ${a.note}</p>
       </div>
