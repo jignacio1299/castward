@@ -1,4 +1,4 @@
-// Castward - Production Client Application (Live Weather, Precip Intensity, Geolocation & Local Persistence)
+// Castward - Production Client Application (Local Hourly Forecast, NWS Alerts & Persistence)
 const STORAGE_KEY = "castward_user_state_v1";
 
 function getDefaultDateString() {
@@ -44,7 +44,7 @@ let weatherState = {
   retrievedAt: "Fetching live forecast...",
   alertStatus: "checking", // "clear" | "active" | "failed"
   alertHeadline: "Checking active weather alerts...",
-  hours: [] // Normalized hourly objects: { timeISO, dateStr, hour24, tempF, rain, precipMm, windSpeedMph, windSpeedLabel, windDir, shortForecast, humidity }
+  hours: [] // { timeISO, dateStr, hour24, tempF, rain, precipMm, windSpeedMph, windSpeedLabel, windDir, shortForecast, humidity }
 };
 
 let previousScreen = "screen-home";
@@ -176,7 +176,7 @@ function formatMinutesTo24HrInput(totalMinutes) {
   return `${hours24}:${mins}`;
 }
 
-// 3. Precipitation Intensity & NWS Grid Helpers
+// 3. Weather Formatting & Precipitation Intensity Helpers
 function degreesToCardinal(deg) {
   if (deg === null || deg === undefined) return "";
   const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
@@ -208,34 +208,6 @@ function wmoCodeToText(code) {
     99: "Severe Thunderstorm"
   };
   return map[code] || "Mixed Conditions";
-}
-
-function parseIsoDurationHours(durationStr) {
-  if (!durationStr) return 1;
-  const match = durationStr.match(/P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?/);
-  if (!match) return 1;
-  const days = parseInt(match[1] || "0", 10);
-  const hours = parseInt(match[2] || "0", 10);
-  const mins = parseInt(match[3] || "0", 10);
-  return Math.max(1, days * 24 + hours + mins / 60);
-}
-
-function buildHourlyPrecipLookup(qpfValues) {
-  const intervals = (qpfValues || []).map((entry) => {
-    const [startIso, durationStr] = String(entry.validTime || "").split("/");
-    const startMs = Date.parse(startIso);
-    const durationHrs = parseIsoDurationHours(durationStr);
-    const endMs = startMs + durationHrs * 3600000;
-    const mmPerHour = (entry.value ?? 0) / durationHrs;
-    return { startMs, endMs, mmPerHour };
-  });
-
-  return (targetIso) => {
-    const targetMs = Date.parse(targetIso);
-    if (Number.isNaN(targetMs)) return 0;
-    const hit = intervals.find((iv) => targetMs >= iv.startMs && targetMs < iv.endMs);
-    return hit ? hit.mmPerHour : 0;
-  };
 }
 
 function formatPrecipIntensity(precipMm, popPercent) {
@@ -281,7 +253,7 @@ function formatPrecipIntensity(precipMm, popPercent) {
   };
 }
 
-// 4. Live Weather Fetching (NWS primary for US + Open-Meteo fallback globally)
+// 4. Live Weather Fetching (Open-Meteo Local HRRR/NBM Primary + Official NWS Alerts in Parallel)
 async function fetchLiveWeatherForLocation(lat, lon) {
   weatherState.loading = true;
   weatherState.error = null;
@@ -291,135 +263,127 @@ async function fetchLiveWeatherForLocation(lat, lon) {
   const roundedLon = Number(lon).toFixed(4);
   const nowStr = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-  // Attempt National Weather Service (NWS) API first (covers US locations with official alerts & QPF grid)
+  const omUrl = `https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLon}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=3`;
+  const alertsUrl = `https://api.weather.gov/alerts/active?point=${roundedLat},${roundedLon}`;
+
+  const [omSettled, alertsSettled] = await Promise.allSettled([
+    fetch(omUrl),
+    fetch(alertsUrl, { headers: { Accept: "application/geo+json" } })
+  ]);
+
+  // Process official NWS alerts (covers US locations; 400/404 means outside US jurisdiction)
+  if (alertsSettled.status === "fulfilled") {
+    if (alertsSettled.value.ok) {
+      try {
+        const alertsData = await alertsSettled.value.json();
+        const features = alertsData.features || [];
+        if (features.length > 0) {
+          weatherState.alertStatus = "active";
+          weatherState.alertHeadline = features
+            .map((f) => f.properties?.headline || f.properties?.event)
+            .filter(Boolean)
+            .join(" · ");
+        } else {
+          weatherState.alertStatus = "clear";
+          weatherState.alertHeadline = "No active NWS alerts for this location.";
+        }
+      } catch {
+        weatherState.alertStatus = "failed";
+        weatherState.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
+      }
+    } else if (alertsSettled.value.status === 400 || alertsSettled.value.status === 404) {
+      weatherState.alertStatus = "clear";
+      weatherState.alertHeadline = "No NWS alerts (international location — check local meteorological agency for advisories).";
+    } else {
+      weatherState.alertStatus = "failed";
+      weatherState.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
+    }
+  } else {
+    weatherState.alertStatus = "failed";
+    weatherState.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
+  }
+
+  // Primary: Open-Meteo local high-resolution hourly forecast
+  if (omSettled.status === "fulfilled" && omSettled.value.ok) {
+    try {
+      const omData = await omSettled.value.json();
+      const times = omData.hourly?.time || [];
+
+      weatherState.hours = times.map((t, idx) => {
+        const [datePart, timePart] = t.split("T");
+        const hour24 = parseInt(timePart.split(":")[0], 10);
+        const windMph = Math.round(omData.hourly.wind_speed_10m?.[idx] ?? 0);
+        const windDir = degreesToCardinal(omData.hourly.wind_direction_10m?.[idx]);
+
+        return {
+          timeISO: t,
+          dateStr: datePart,
+          hour24,
+          tempF: Math.round(omData.hourly.temperature_2m?.[idx] ?? 60),
+          rain: Math.round(omData.hourly.precipitation_probability?.[idx] ?? 0),
+          precipMm: Number(omData.hourly.precipitation?.[idx] ?? 0),
+          windSpeedMph: windMph,
+          windSpeedLabel: `${windMph} mph`,
+          windDir,
+          shortForecast: wmoCodeToText(omData.hourly.weather_code?.[idx] ?? 0),
+          humidity: Math.round(omData.hourly.relative_humidity_2m?.[idx] ?? 65)
+        };
+      });
+
+      weatherState.loading = false;
+      weatherState.source = `Local Hourly (${roundedLat}, ${roundedLon})`;
+      weatherState.retrievedAt = `Updated ${nowStr}`;
+      updateAllViews();
+      return;
+    } catch (err) {
+      console.warn("Error parsing Open-Meteo data, trying NWS backup:", err);
+    }
+  }
+
+  // Backup fallback: NWS hourly forecast if Open-Meteo is unreachable
   try {
     const pointRes = await fetch(`https://api.weather.gov/points/${roundedLat},${roundedLon}`, {
       headers: { Accept: "application/geo+json" }
     });
+    if (!pointRes.ok) throw new Error("NWS point lookup failed");
+    const pointData = await pointRes.json();
+    const hourlyRes = await fetch(pointData.properties.forecastHourly, {
+      headers: { Accept: "application/geo+json" }
+    });
+    if (!hourlyRes.ok) throw new Error("NWS hourly fetch failed");
+    const hourlyData = await hourlyRes.json();
+    const periods = hourlyData.properties?.periods || [];
 
-    if (pointRes.ok) {
-      const pointData = await pointRes.json();
-      const forecastHourlyUrl = pointData.properties?.forecastHourly;
-      const forecastGridUrl = pointData.properties?.forecastGridData;
-      const gridId = pointData.properties?.gridId;
-      const gridX = pointData.properties?.gridX;
-      const gridY = pointData.properties?.gridY;
-
-      if (forecastHourlyUrl) {
-        const [hourlyRes, gridRes, alertsRes] = await Promise.allSettled([
-          fetch(forecastHourlyUrl, { headers: { Accept: "application/geo+json" } }),
-          forecastGridUrl
-            ? fetch(forecastGridUrl, { headers: { Accept: "application/geo+json" } })
-            : Promise.reject("No grid URL"),
-          fetch(`https://api.weather.gov/alerts/active?point=${roundedLat},${roundedLon}`, {
-            headers: { Accept: "application/geo+json" }
-          })
-        ]);
-
-        if (hourlyRes.status === "fulfilled" && hourlyRes.value.ok) {
-          const hourlyData = await hourlyRes.value.json();
-          const periods = hourlyData.properties?.periods || [];
-
-          let getPrecipMmForIso = () => 0;
-          if (gridRes.status === "fulfilled" && gridRes.value.ok) {
-            const gridData = await gridRes.value.json();
-            const qpfValues = gridData.properties?.quantitativePrecipitation?.values || [];
-            getPrecipMmForIso = buildHourlyPrecipLookup(qpfValues);
-          }
-
-          weatherState.hours = periods.slice(0, 72).map((p) => {
-            const dt = new Date(p.startTime);
-            const year = dt.getFullYear();
-            const month = String(dt.getMonth() + 1).padStart(2, "0");
-            const day = String(dt.getDate()).padStart(2, "0");
-            const windMatch = String(p.windSpeed || "").match(/\d+/);
-            const windMph = windMatch ? parseInt(windMatch[0], 10) : 0;
-
-            return {
-              timeISO: p.startTime,
-              dateStr: `${year}-${month}-${day}`,
-              hour24: dt.getHours(),
-              tempF: p.temperatureUnit === "C" ? Math.round((p.temperature * 9) / 5 + 32) : p.temperature,
-              rain: p.probabilityOfPrecipitation?.value ?? 0,
-              precipMm: getPrecipMmForIso(p.startTime),
-              windSpeedMph: windMph,
-              windSpeedLabel: p.windSpeed || `${windMph} mph`,
-              windDir: p.windDirection || "",
-              shortForecast: p.shortForecast || "Clear",
-              humidity: p.relativeHumidity?.value ?? 65
-            };
-          });
-
-          if (alertsRes.status === "fulfilled" && alertsRes.value.ok) {
-            const alertsData = await alertsRes.value.json();
-            const features = alertsData.features || [];
-            if (features.length > 0) {
-              weatherState.alertStatus = "active";
-              weatherState.alertHeadline = features
-                .map((f) => f.properties?.headline || f.properties?.event)
-                .filter(Boolean)
-                .join(" · ");
-            } else {
-              weatherState.alertStatus = "clear";
-              weatherState.alertHeadline = "No active NWS alerts for this location.";
-            }
-          } else {
-            weatherState.alertStatus = "failed";
-            weatherState.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
-          }
-
-          weatherState.loading = false;
-          weatherState.source = `NWS (${gridId} ${gridX},${gridY})`;
-          weatherState.retrievedAt = `NWS · updated ${nowStr}`;
-          updateAllViews();
-          return;
-        }
-      }
-    }
-  } catch (nwsErr) {
-    console.info("NWS endpoint unavailable for coordinates, falling back to Open-Meteo:", nwsErr);
-  }
-
-  // Fallback to Open-Meteo API (works worldwide, includes hourly precipitation volume)
-  try {
-    const omUrl = `https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLon}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=3`;
-    const omRes = await fetch(omUrl);
-    if (!omRes.ok) throw new Error(`Weather request failed (${omRes.status})`);
-    const omData = await omRes.json();
-
-    const times = omData.hourly?.time || [];
-    weatherState.hours = times.map((t, idx) => {
-      const [datePart, timePart] = t.split("T");
-      const hour24 = parseInt(timePart.split(":")[0], 10);
-      const windMph = Math.round(omData.hourly.wind_speed_10m?.[idx] ?? 0);
-      const windDir = degreesToCardinal(omData.hourly.wind_direction_10m?.[idx]);
+    weatherState.hours = periods.slice(0, 72).map((p) => {
+      const dt = new Date(p.startTime);
+      const year = dt.getFullYear();
+      const month = String(dt.getMonth() + 1).padStart(2, "0");
+      const day = String(dt.getDate()).padStart(2, "0");
+      const windMatch = String(p.windSpeed || "").match(/\d+/);
+      const windMph = windMatch ? parseInt(windMatch[0], 10) : 0;
 
       return {
-        timeISO: t,
-        dateStr: datePart,
-        hour24,
-        tempF: Math.round(omData.hourly.temperature_2m?.[idx] ?? 60),
-        rain: Math.round(omData.hourly.precipitation_probability?.[idx] ?? 0),
-        precipMm: Number(omData.hourly.precipitation?.[idx] ?? 0),
+        timeISO: p.startTime,
+        dateStr: `${year}-${month}-${day}`,
+        hour24: dt.getHours(),
+        tempF: p.temperatureUnit === "C" ? Math.round((p.temperature * 9) / 5 + 32) : p.temperature,
+        rain: p.probabilityOfPrecipitation?.value ?? 0,
+        precipMm: 0,
         windSpeedMph: windMph,
-        windSpeedLabel: `${windMph} mph`,
-        windDir,
-        shortForecast: wmoCodeToText(omData.hourly.weather_code?.[idx] ?? 0),
-        humidity: Math.round(omData.hourly.relative_humidity_2m?.[idx] ?? 65)
+        windSpeedLabel: p.windSpeed || `${windMph} mph`,
+        windDir: p.windDirection || "",
+        shortForecast: p.shortForecast || "Clear",
+        humidity: p.relativeHumidity?.value ?? 65
       };
     });
 
-    weatherState.alertStatus = "clear";
-    weatherState.alertHeadline = "Hourly forecast loaded via Open-Meteo (check local meteorological agency for severe alerts).";
     weatherState.loading = false;
-    weatherState.source = `Open-Meteo (${roundedLat}, ${roundedLon})`;
-    weatherState.retrievedAt = `Open-Meteo · updated ${nowStr}`;
+    weatherState.source = `NWS Backup (${pointData.properties?.gridId} ${pointData.properties?.gridX},${pointData.properties?.gridY})`;
+    weatherState.retrievedAt = `NWS · updated ${nowStr}`;
     updateAllViews();
-  } catch (err) {
+  } catch {
     weatherState.loading = false;
     weatherState.error = "Unable to reach live weather service. Check your internet connection and refresh.";
-    weatherState.alertStatus = "failed";
-    weatherState.alertHeadline = "Weather service unreachable. Alerts and hourly forecast could not be verified.";
     weatherState.retrievedAt = `Offline · failed at ${nowStr}`;
     updateAllViews();
   }
@@ -466,10 +430,11 @@ function classifyWindowCondition(hourObj) {
   const forecastLower = hourObj.shortForecast.toLowerCase();
   const precipInfo = formatPrecipIntensity(hourObj.precipMm ?? 0, hourObj.rain);
 
+  // Evaluate only the actual conditions during the selected run window
   if (
-    weatherState.alertStatus === "active" ||
     forecastLower.includes("thunder") ||
     forecastLower.includes("severe") ||
+    hourObj.rain >= 60 ||
     (hourObj.precipMm ?? 0) >= 5.0 ||
     hourObj.windSpeedMph >= 25
   ) {
@@ -478,10 +443,7 @@ function classifyWindowCondition(hourObj) {
       badgeClass: "danger-pill",
       badgeText: "Reconsider",
       title: "Reconsider",
-      desc:
-        weatherState.alertStatus === "active"
-          ? weatherState.alertHeadline
-          : `${hourObj.shortForecast} (${hourObj.rain}% chance · ${precipInfo.shortText}, wind ${hourObj.windSpeedLabel}).`
+      desc: `${hourObj.shortForecast} (${hourObj.rain}% chance · ${precipInfo.shortText}, wind ${hourObj.windSpeedLabel}).`
     };
   }
 
@@ -508,9 +470,10 @@ function classifyWindowCondition(hourObj) {
     badgeClass: "clear-pill",
     badgeText: "Good window",
     title: "Good window to run",
-    desc: `${hourObj.shortForecast} (${formatTemp(hourObj.tempF)}, ${hourObj.rain}% rain chance).`
+    desc: `${hourObj.shortForecast} (${formatTemp(hourObj.tempF)}, ${hourObj.rain}% rain chance · ${precipInfo.shortText}).`
   };
 }
+
 
 // 6. Update All UI Screens with Live Data
 function updateLocationAndDateLabels() {
@@ -859,7 +822,6 @@ function updateClothingRecommendations(targetHour24, dateStr) {
         : "Live weather";
   }
 
-  // Compute effective temperature feel based on preference and activity
   const rawTempF = h.tempF ?? 60;
   const prefOffset = pref === "warmer" ? -8 : pref === "cooler" ? 8 : 0;
   const actOffset = act === "run-walk" ? -4 : 0;
@@ -919,7 +881,6 @@ function updateClothingRecommendations(targetHour24, dateStr) {
     )} generates steady body heat after 10 minutes. Dressed for "${pref}" comfort so you don't overheat mid-run.`;
   }
 
-  // Set smart defaults for checkboxes unless manually overridden by the user
   const defaultLayer = effectiveTempF < 58 || (act === "run-walk" && effectiveTempF < 66);
   const defaultShell = (h.rain >= 30 && (h.precipMm ?? 0) >= 0.25) || h.rain >= 60 || h.windSpeedMph >= 18;
   const defaultAcc = rawTempF < 45 || h.rain >= 20 || h.windSpeedMph >= 15;
