@@ -528,13 +528,29 @@ body {
 
 /* Hourly Forecast Screen Grid */
 .hourly-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
   gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 12px;
   margin-bottom: 18px;
+  scroll-snap-type: x mandatory;
+}
+
+/* Scoller */
+.hourly-grid::-webkit-scrollbar {
+  height: 8px;
+}
+.hourly-grid::-webkit-scrollbar-track {
+  background: #e6e4dd;
+  border-radius: 999px;
+}
+.hourly-grid::-webkit-scrollbar-thumb {
+  background: #2c6e49;
+  border-radius: 999px;
 }
 
 .hour-card {
+  flex: 0 0 180px;
   background: #ffffff;
   border: 1px solid #e6e4dd;
   border-radius: 16px;
@@ -543,6 +559,12 @@ body {
   flex-direction: column;
   gap: 10px;
   min-height: 215px;
+  scroll-snap-align: start;
+}
+
+.hour-card.active-start-hour {
+  border-color: #2c6e49;
+  background-color: #f0f8f2;
 }
 
 .hour-time {

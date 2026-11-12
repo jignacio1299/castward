@@ -705,7 +705,7 @@ function renderHourlyForecastCards(startHour24, dateStr) {
   const grid = document.getElementById("hourly-cards-grid");
   if (!grid) return;
 
-  const cardsHtml = [0, 1, 2]
+  const cardsHtml = Array.from({ length: 24 }, (_, offset) => offset)
     .map((offset) => {
       const hour24 = (startHour24 + offset) % 24;
       const timeLabel = formatMinutesTo12Hr(hour24 * 60);
