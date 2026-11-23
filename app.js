@@ -50,6 +50,15 @@ let weatherState = {
 let previousScreen = "screen-home";
 let runTimerInterval = null;
 let comparedSlots = { slot1Time: "06:30", slot2Time: "07:30" };
+let weatherRequestId = 0;
+
+function numberOrNull(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function percent(value) {
+  return Number.isFinite(value) ? `${value}%` : "Unavailable";
+}
 
 function loadState() {
   try {
@@ -86,10 +95,10 @@ function formatTemp(tempF) {
 }
 
 function formatDateLabel(dateInputStr) {
-  if (!dateInputStr) return "Today";
-  const [y, m, d] = dateInputStr.split("-").map(Number);
-  const dateObj = new Date(y, m - 1, d);
+  if (!isValidCalendarDate(dateInputStr)) return "Date unavailable";
+  const dateObj = new Date(`${dateInputStr}T00:00:00Z`);
   return dateObj.toLocaleDateString("en-US", {
+    timeZone: "UTC",
     weekday: "short",
     month: "short",
     day: "numeric"
@@ -98,6 +107,7 @@ function formatDateLabel(dateInputStr) {
 
 // 1. Screen Navigation
 function showScreen(screenId) {
+  if (["screen-window", "screen-forecast", "screen-compare", "screen-hourly", "screen-clothing", "screen-indoor"].includes(screenId) && !requireValidPlan()) return;
   const currentActive = document.querySelector(".screen.active");
   if (currentActive && currentActive.id !== screenId && screenId === "screen-hourly") {
     previousScreen = currentActive.id;
@@ -130,6 +140,7 @@ document.addEventListener("click", (e) => {
   const navTrigger = e.target.closest("[data-target]");
   if (navTrigger) {
     e.preventDefault();
+    if (["btn-save-clothing", "btn-confirm-indoor"].includes(navTrigger.id) && !requireValidPlan()) return;
     if (navTrigger.id === "btn-save-clothing") {
       updateSavedClothingSummary();
       saveState();
@@ -154,9 +165,88 @@ document.addEventListener("click", (e) => {
 
 // 2. Time Helpers
 function parseTimeToMinutes(timeStr) {
-  if (!timeStr) return null;
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(timeStr)) return null;
   const [hours, minutes] = timeStr.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+function isValidCalendarDate(dateStr) {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) && dateStr.slice(0, 4) !== "0000"
+    ? new Date(`${dateStr}T00:00:00Z`) : null;
+  return Boolean(date && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === dateStr);
+}
+
+function validatePlanValues({ dateStr, startTime, duration, homeBy }) {
+  const errors = {};
+  if (!isValidCalendarDate(dateStr)) {
+    errors["run-date-input"] = "Choose a valid calendar date.";
+  }
+  const startMins = parseTimeToMinutes(startTime);
+  if (startMins === null) errors["start-time-input"] = "Enter a valid start time.";
+  const minutes = Number(duration);
+  if (!/^\d+$/.test(duration) || !Number.isInteger(minutes) || minutes < 5 || minutes > 300 || minutes % 5 !== 0) {
+    errors["duration-input"] = "Enter a duration from 5 to 300 minutes in steps of 5.";
+  }
+  if (homeBy !== "" && parseTimeToMinutes(homeBy) === null) errors["home-by-input"] = "Enter a valid Home by time or leave it empty.";
+  // Comparisons and the 24-hour view must also stay within four-digit years.
+  if (!Object.keys(errors).length) {
+    const lastDate = new Date(`${dateStr}T00:00:00Z`);
+    lastDate.setUTCMinutes(Math.max(startMins + minutes + 60, Math.floor(startMins / 60) * 60 + 23 * 60));
+    if (lastDate.getUTCFullYear() > 9999) errors["run-date-input"] = "Choose a date whose run and hourly view finish before year 10000.";
+  }
+  return { valid: !Object.keys(errors).length, errors, dateStr, startMins, duration: minutes,
+    homeByMins: deadlineMinutes(parseTimeToMinutes(homeBy), startMins) };
+}
+
+function readRunPlan() {
+  const value = id => document.getElementById(id)?.value ?? "";
+  const plan = validatePlanValues({ dateStr: value("run-date-input"), startTime: value("start-time-input"),
+    duration: value("duration-input"), homeBy: value("home-by-input") });
+  for (const id of ["run-date-input", "start-time-input", "duration-input", "home-by-input"]) {
+    if (document.getElementById(id)?.validity?.badInput) plan.errors[id] = "Complete or correct this field.";
+  }
+  plan.valid = !Object.keys(plan.errors).length;
+  return plan;
+}
+
+function requireValidPlan() {
+  const plan = readRunPlan();
+  if (plan.valid) return true;
+  updateRunCalculations();
+  showScreen("screen-plan");
+  document.getElementById(Object.keys(plan.errors)[0])?.focus();
+  return false;
+}
+
+function renderInvalidPlan(plan) {
+  const message = Object.values(plan.errors).join(" ");
+  for (const id of ["expected-finish", "window-summary-time", "forecast-summary-time", "window-home-by",
+    "win-temp", "win-rain", "win-wind", "temp-value", "rain-value", "wind-value", "clothing-time-label",
+    "compare-duration-label", "compare-homeby-label", "compare-slot1-title", "compare-slot2-title",
+    "compare-slot1-deadline", "compare-slot2-deadline", "indoor-saved-window", "indoor-saved-meta"]) {
+    document.getElementById(id).textContent = "--";
+  }
+  for (const id of ["home-weather-preview", "plan-return-status", "window-status-desc", "alert-desc",
+    "compare-slot1-desc", "compare-slot2-desc", "compare-tradeoff-text", "saved-plan-header"]) {
+    document.getElementById(id).textContent = `Check run details. ${message}`;
+  }
+  for (const id of ["window-status-title", "alert-title"]) document.getElementById(id).textContent = "Check run details";
+  for (const id of ["window-status-card", "alert-box", "compare-card-1", "compare-card-2"]) {
+    const el = document.getElementById(id);
+    el.classList.remove("danger", "caution", "clear");
+    el.classList.add("neutral-banner");
+  }
+  for (const id of ["compare-badge-1", "compare-badge-2"]) document.getElementById(id).textContent = "Unavailable";
+  document.getElementById("late-return-box").classList.add("hidden");
+  document.getElementById("hourly-cards-grid").textContent = "Check run details before viewing the forecast.";
+  updateClothingRecommendations(NaN, "invalid");
+  document.getElementById("clothing-weather-label").textContent = "Check run details";
+  document.getElementById("clothing-reason-text").textContent = "Correct run details before using clothing recommendations.";
+}
+
+// A Home by clock time earlier than the start belongs to the following day.
+function deadlineMinutes(homeBy, start) {
+  return homeBy === null ? null : homeBy < start ? homeBy + 1440 : homeBy;
 }
 
 function formatMinutesTo12Hr(totalMinutes) {
@@ -194,23 +284,33 @@ function wmoCodeToText(code) {
     51: "Light Drizzle",
     53: "Moderate Drizzle",
     55: "Dense Drizzle",
+    56: "Light Freezing Drizzle",
+    57: "Dense Freezing Drizzle",
     61: "Slight Rain",
     63: "Moderate Rain",
     65: "Heavy Rain",
+    66: "Light Freezing Rain",
+    67: "Heavy Freezing Rain",
     71: "Light Snow",
     73: "Moderate Snow",
     75: "Heavy Snow",
+    77: "Snow Grains",
     80: "Slight Rain Showers",
     81: "Moderate Rain Showers",
     82: "Heavy Rain Showers",
+    85: "Slight Snow Showers",
+    86: "Heavy Snow Showers",
     95: "Thunderstorm",
     96: "Thunderstorm With Hail",
     99: "Severe Thunderstorm"
   };
-  return map[code] || "Mixed Conditions";
+  return map[code] || (Number.isFinite(code) ? "Mixed Conditions" : "Conditions unavailable");
 }
 
 function formatPrecipIntensity(precipMm, popPercent) {
+  if (!Number.isFinite(precipMm)) {
+    return { label: "Amount unavailable", amountText: "Amount unavailable", shortText: "Amount unavailable" };
+  }
   if (popPercent < 10 && precipMm < 0.1) {
     return {
       label: "Dry",
@@ -253,11 +353,21 @@ function formatPrecipIntensity(precipMm, popPercent) {
   };
 }
 
-// 4. Live Weather Fetching (Open-Meteo Local HRRR/NBM Primary + Official NWS Alerts in Parallel)
+// 4. Open-Meteo hourly forecast with official NWS alerts in parallel.
 async function fetchLiveWeatherForLocation(lat, lon) {
-  weatherState.loading = true;
-  weatherState.error = null;
-  updateLocationAndDateLabels();
+  const requestId = ++weatherRequestId;
+  const next = {
+    loading: true, error: null, hours: [],
+    source: `Loading forecast (${Number(lat).toFixed(4)}, ${Number(lon).toFixed(4)})`,
+    retrievedAt: "Fetching live forecast...",
+    alertStatus: "checking", alertHeadline: "Checking official NWS alerts..."
+  };
+  weatherState = next;
+  updateAllViews();
+  const publish = () => {
+    if (requestId === weatherRequestId) updateAllViews();
+  };
+  const request = (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
 
   const roundedLat = Number(lat).toFixed(4);
   const roundedLon = Number(lon).toFixed(4);
@@ -267,73 +377,75 @@ async function fetchLiveWeatherForLocation(lat, lon) {
   const alertsUrl = `https://api.weather.gov/alerts/active?point=${roundedLat},${roundedLon}`;
 
   const [omSettled, alertsSettled] = await Promise.allSettled([
-    fetch(omUrl),
-    fetch(alertsUrl, { headers: { Accept: "application/geo+json" } })
+    request(omUrl),
+    request(alertsUrl, { headers: { Accept: "application/geo+json" } })
   ]);
 
-  // Process official NWS alerts (covers US locations; 400/404 means outside US jurisdiction)
+  // A failed lookup cannot establish absence of warnings or jurisdiction.
   if (alertsSettled.status === "fulfilled") {
     if (alertsSettled.value.ok) {
       try {
         const alertsData = await alertsSettled.value.json();
-        const features = alertsData.features || [];
+        const features = alertsData.features;
+        if (!Array.isArray(features)) throw new Error("Invalid alerts response");
         if (features.length > 0) {
-          weatherState.alertStatus = "active";
-          weatherState.alertHeadline = features
+          next.alertStatus = "active";
+          next.alertHeadline = features
             .map((f) => f.properties?.headline || f.properties?.event)
             .filter(Boolean)
-            .join(" · ");
+            .join(" · ") || "Active official NWS alert. Check weather.gov for details.";
         } else {
-          weatherState.alertStatus = "clear";
-          weatherState.alertHeadline = "No active NWS alerts for this location.";
+          next.alertStatus = "clear";
+          next.alertHeadline = "No active NWS alerts for this location.";
         }
       } catch {
-        weatherState.alertStatus = "failed";
-        weatherState.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
+        next.alertStatus = "failed";
+        next.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
       }
     } else if (alertsSettled.value.status === 400 || alertsSettled.value.status === 404) {
-      weatherState.alertStatus = "clear";
-      weatherState.alertHeadline = "No NWS alerts (international location — check local meteorological agency for advisories).";
+      next.alertStatus = "unsupported";
+      next.alertHeadline = "NWS alert coverage unavailable. Check the local weather authority; warnings have not been ruled out.";
     } else {
-      weatherState.alertStatus = "failed";
-      weatherState.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
+      next.alertStatus = "failed";
+      next.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
     }
   } else {
-    weatherState.alertStatus = "failed";
-    weatherState.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
+    next.alertStatus = "failed";
+    next.alertHeadline = "Alerts check unavailable. Do not read this as an absence of alerts.";
   }
 
   // Primary: Open-Meteo local high-resolution hourly forecast
   if (omSettled.status === "fulfilled" && omSettled.value.ok) {
     try {
       const omData = await omSettled.value.json();
-      const times = omData.hourly?.time || [];
+      const times = omData.hourly?.time;
+      if (!Array.isArray(times) || !times.length) throw new Error("Empty hourly forecast");
 
-      weatherState.hours = times.map((t, idx) => {
+      next.hours = times.map((t, idx) => {
         const [datePart, timePart] = t.split("T");
         const hour24 = parseInt(timePart.split(":")[0], 10);
-        const windMph = Math.round(omData.hourly.wind_speed_10m?.[idx] ?? 0);
+        const windMph = numberOrNull(omData.hourly.wind_speed_10m?.[idx]);
         const windDir = degreesToCardinal(omData.hourly.wind_direction_10m?.[idx]);
 
         return {
           timeISO: t,
           dateStr: datePart,
           hour24,
-          tempF: Math.round(omData.hourly.temperature_2m?.[idx] ?? 60),
-          rain: Math.round(omData.hourly.precipitation_probability?.[idx] ?? 0),
-          precipMm: Number(omData.hourly.precipitation?.[idx] ?? 0),
+          tempF: numberOrNull(omData.hourly.temperature_2m?.[idx]),
+          rain: numberOrNull(omData.hourly.precipitation_probability?.[idx]),
+          precipMm: numberOrNull(omData.hourly.precipitation?.[idx]),
           windSpeedMph: windMph,
-          windSpeedLabel: `${windMph} mph`,
+          windSpeedLabel: windMph === null ? "Unavailable" : `${Math.round(windMph)} mph`,
           windDir,
-          shortForecast: wmoCodeToText(omData.hourly.weather_code?.[idx] ?? 0),
-          humidity: Math.round(omData.hourly.relative_humidity_2m?.[idx] ?? 65)
+          shortForecast: wmoCodeToText(omData.hourly.weather_code?.[idx]),
+          humidity: numberOrNull(omData.hourly.relative_humidity_2m?.[idx])
         };
       });
 
-      weatherState.loading = false;
-      weatherState.source = `Local Hourly (${roundedLat}, ${roundedLon})`;
-      weatherState.retrievedAt = `Updated ${nowStr}`;
-      updateAllViews();
+      next.loading = false;
+      next.source = `Open-Meteo Hourly (${roundedLat}, ${roundedLon})`;
+      next.retrievedAt = `Updated ${nowStr}`;
+      publish();
       return;
     } catch (err) {
       console.warn("Error parsing Open-Meteo data, trying NWS backup:", err);
@@ -342,82 +454,112 @@ async function fetchLiveWeatherForLocation(lat, lon) {
 
   // Backup fallback: NWS hourly forecast if Open-Meteo is unreachable
   try {
-    const pointRes = await fetch(`https://api.weather.gov/points/${roundedLat},${roundedLon}`, {
+    const pointRes = await request(`https://api.weather.gov/points/${roundedLat},${roundedLon}`, {
       headers: { Accept: "application/geo+json" }
     });
     if (!pointRes.ok) throw new Error("NWS point lookup failed");
     const pointData = await pointRes.json();
-    const hourlyRes = await fetch(pointData.properties.forecastHourly, {
+    const hourlyRes = await request(pointData.properties.forecastHourly, {
       headers: { Accept: "application/geo+json" }
     });
     if (!hourlyRes.ok) throw new Error("NWS hourly fetch failed");
     const hourlyData = await hourlyRes.json();
-    const periods = hourlyData.properties?.periods || [];
+    const periods = hourlyData.properties?.periods;
+    if (!Array.isArray(periods) || !periods.length) throw new Error("Empty NWS hourly forecast");
 
-    weatherState.hours = periods.slice(0, 72).map((p) => {
-      const dt = new Date(p.startTime);
-      const year = dt.getFullYear();
-      const month = String(dt.getMonth() + 1).padStart(2, "0");
-      const day = String(dt.getDate()).padStart(2, "0");
-      const windMatch = String(p.windSpeed || "").match(/\d+/);
-      const windMph = windMatch ? parseInt(windMatch[0], 10) : 0;
+    next.hours = periods.slice(0, 72).map((p) => {
+      // Keep the forecast location's wall date/hour, not the browser's timezone.
+      const [datePart, timePart] = p.startTime.split("T");
+      const speeds = String(p.windSpeed || "").match(/\d+(?:\.\d+)?/g);
+      const windMph = speeds ? Math.max(...speeds.map(Number)) : /^calm$/i.test(p.windSpeed) ? 0 : null;
+      const temp = numberOrNull(p.temperature);
 
       return {
         timeISO: p.startTime,
-        dateStr: `${year}-${month}-${day}`,
-        hour24: dt.getHours(),
-        tempF: p.temperatureUnit === "C" ? Math.round((p.temperature * 9) / 5 + 32) : p.temperature,
-        rain: p.probabilityOfPrecipitation?.value ?? 0,
-        precipMm: 0,
+        dateStr: datePart,
+        hour24: Number(timePart.slice(0, 2)),
+        tempF: temp === null ? null : p.temperatureUnit === "C" ? (temp * 9) / 5 + 32 : temp,
+        rain: numberOrNull(p.probabilityOfPrecipitation?.value),
+        precipMm: null,
         windSpeedMph: windMph,
-        windSpeedLabel: p.windSpeed || `${windMph} mph`,
+        windSpeedLabel: p.windSpeed || "Unavailable",
         windDir: p.windDirection || "",
-        shortForecast: p.shortForecast || "Clear",
-        humidity: p.relativeHumidity?.value ?? 65
+        shortForecast: p.shortForecast || "Conditions unavailable",
+        humidity: numberOrNull(p.relativeHumidity?.value)
       };
     });
 
-    weatherState.loading = false;
-    weatherState.source = `NWS Backup (${pointData.properties?.gridId} ${pointData.properties?.gridX},${pointData.properties?.gridY})`;
-    weatherState.retrievedAt = `NWS · updated ${nowStr}`;
-    updateAllViews();
+    next.loading = false;
+    next.source = `NWS Backup (${roundedLat}, ${roundedLon})`;
+    next.retrievedAt = `NWS · updated ${nowStr}`;
+    publish();
   } catch {
-    weatherState.loading = false;
-    weatherState.error = "Unable to reach live weather service. Check your internet connection and refresh.";
-    weatherState.retrievedAt = `Offline · failed at ${nowStr}`;
-    updateAllViews();
+    next.loading = false;
+    next.source = `Forecast unavailable (${roundedLat}, ${roundedLon})`;
+    next.error = "Unable to reach live weather service. Check your internet connection and refresh.";
+    next.retrievedAt = `Offline · failed at ${nowStr}`;
+    publish();
   }
 }
 
 // 5. Match Selected Date & Hour to Live Forecast
 function getHourData(targetHour24, targetDateStr) {
   const dateStr = targetDateStr || document.getElementById("run-date-input")?.value || getDefaultDateString();
-  if (weatherState.hours.length > 0) {
-    const exactMatch = weatherState.hours.find(
-      (h) => h.dateStr === dateStr && h.hour24 === targetHour24
-    );
-    if (exactMatch) return exactMatch;
-
-    const sameHourMatch = weatherState.hours.find((h) => h.hour24 === targetHour24);
-    if (sameHourMatch) return sameHourMatch;
-
-    return weatherState.hours[0];
-  }
-
-  return {
-    tempF: null,
-    rain: 0,
-    precipMm: 0,
-    windSpeedMph: 0,
-    windSpeedLabel: "-- mph",
-    windDir: "",
+  return weatherState.hours.find((h) => h.dateStr === dateStr && h.hour24 === targetHour24) || {
+    available: false, tempF: null, rain: null, precipMm: null,
+    windSpeedMph: null, windSpeedLabel: "Unavailable", windDir: "",
     shortForecast: weatherState.loading ? "Loading forecast..." : "Forecast unavailable",
-    humidity: 0
+    humidity: null
   };
 }
 
+// Calendar arithmetic deliberately uses UTC only as a wall-clock calculator.
+// Forecast timestamps and planning inputs are in the selected location's local time.
+function dateAtOffset(dateStr, minutes) {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCMinutes(minutes);
+  return date.toISOString().slice(0, 10);
+}
+
+function getRunWindow(startMins, duration, dateStr) {
+  const hours = [];
+  for (let minute = Math.floor(startMins / 60) * 60; minute < startMins + duration; minute += 60) {
+    hours.push(getHourData(((minute / 60) % 24 + 24) % 24, dateAtOffset(dateStr, minute)));
+  }
+  return hours;
+}
+
+function evaluateRunWindow(startMins, duration, dateStr) {
+  const hours = getRunWindow(startMins, duration, dateStr);
+  const complete = hours.length > 0 && hours.every(h => Number.isFinite(h.tempF) && Number.isFinite(h.rain) &&
+    Number.isFinite(h.precipMm) && Number.isFinite(h.windSpeedMph) && !/unavailable/i.test(h.shortForecast));
+  const rank = { clear: 0, caution: 1, danger: 2, "neutral-banner": -1 };
+  const worst = hours.map(classifyWindowCondition).sort((a,b) => rank[b.level] - rank[a.level])[0];
+  let status = worst || classifyWindowCondition(null);
+  const values = key => hours.map(h => h[key]).filter(Number.isFinite);
+  const temps = values("tempF");
+  const rains = values("rain");
+  const winds = values("windSpeedMph");
+  const amounts = values("precipMm");
+  const precipitation = amounts.length ? formatPrecipIntensity(Math.max(...amounts), rains.length ? Math.max(...rains) : null).shortText : "Amount unavailable";
+  const summary = temps.length ? `Across the run: ${formatTemp(Math.min(...temps))} to ${formatTemp(Math.max(...temps))}; highest rain chance ${rains.length ? percent(Math.max(...rains)) : "unavailable"}; heaviest precipitation: ${precipitation}; strongest wind ${winds.length ? Math.round(Math.max(...winds)) + " mph" : "unavailable"}.` : "Forecast unavailable for the planned run.";
+  if (!complete) {
+    const partial = hours.some(h => Number.isFinite(h.tempF));
+    const hazard = status.level === "danger" ? ` Known conditions: ${status.desc}` : "";
+    status = { level: status.level === "danger" ? "danger" : "neutral-banner", badgeClass: "caution-pill",
+      badgeText: partial ? "Partial data" : "Unavailable", title: partial ? "Partial forecast - check conditions" : "Forecast unavailable",
+      desc: `Required hourly weather is missing. A good window cannot be confirmed.${hazard}` };
+  }
+  const alerts = weatherState.alertStatus === "active" ? " Official NWS alerts are active; review them before heading out."
+    : weatherState.alertStatus !== "clear" ? " Official alerts are not verified; check the weather authority." : "";
+  if (status.level === "clear" && weatherState.alertStatus !== "clear") {
+    status = { ...status, level: "caution", badgeClass: "caution-pill", badgeText: "Use caution", title: "Check official alerts before running" };
+  }
+  return { ...status, complete, hours, desc: `${summary} ${status.desc}${alerts} Castward guidance is not a route-safety assessment.` };
+}
+
 function classifyWindowCondition(hourObj) {
-  if (!hourObj || hourObj.tempF === null) {
+  if (!hourObj || hourObj.available === false) {
     return {
       level: "neutral-banner",
       badgeClass: "caution-pill",
@@ -428,7 +570,7 @@ function classifyWindowCondition(hourObj) {
   }
 
   const forecastLower = hourObj.shortForecast.toLowerCase();
-  const precipInfo = formatPrecipIntensity(hourObj.precipMm ?? 0, hourObj.rain);
+  const precipInfo = formatPrecipIntensity(hourObj.precipMm, hourObj.rain);
 
   // Evaluate only the actual conditions during the selected run window
   if (
@@ -436,14 +578,16 @@ function classifyWindowCondition(hourObj) {
     forecastLower.includes("severe") ||
     hourObj.rain >= 60 ||
     (hourObj.precipMm ?? 0) >= 5.0 ||
-    hourObj.windSpeedMph >= 25
+    hourObj.windSpeedMph >= 25 ||
+    (Number.isFinite(hourObj.tempF) && (hourObj.tempF >= 95 || hourObj.tempF <= 10)) ||
+    /freezing|ice|hail/.test(forecastLower)
   ) {
     return {
       level: "danger",
       badgeClass: "danger-pill",
       badgeText: "Reconsider",
       title: "Reconsider",
-      desc: `${hourObj.shortForecast} (${hourObj.rain}% chance · ${precipInfo.shortText}, wind ${hourObj.windSpeedLabel}).`
+      desc: `${hourObj.shortForecast} (${formatTemp(hourObj.tempF)}, ${percent(hourObj.rain)} chance · ${precipInfo.shortText}, wind ${hourObj.windSpeedLabel}).`
     };
   }
 
@@ -454,14 +598,15 @@ function classifyWindowCondition(hourObj) {
     forecastLower.includes("snow") ||
     forecastLower.includes("fog") ||
     hourObj.rain >= 20 ||
-    hourObj.windSpeedMph >= 16
+    hourObj.windSpeedMph >= 16 ||
+    (Number.isFinite(hourObj.tempF) && (hourObj.tempF >= 80 || hourObj.tempF <= 32))
   ) {
     return {
       level: "caution",
       badgeClass: "caution-pill",
       badgeText: "Use caution",
       title: "Use caution",
-      desc: `${hourObj.shortForecast} (${hourObj.rain}% chance · ${precipInfo.shortText}). Wind ${hourObj.windSpeedLabel}.`
+      desc: `${hourObj.shortForecast} (${formatTemp(hourObj.tempF)}, ${percent(hourObj.rain)} chance · ${precipInfo.shortText}). Wind ${hourObj.windSpeedLabel}.`
     };
   }
 
@@ -470,7 +615,7 @@ function classifyWindowCondition(hourObj) {
     badgeClass: "clear-pill",
     badgeText: "Good window",
     title: "Good window to run",
-    desc: `${hourObj.shortForecast} (${formatTemp(hourObj.tempF)}, ${hourObj.rain}% rain chance · ${precipInfo.shortText}).`
+    desc: `${hourObj.shortForecast} (${formatTemp(hourObj.tempF)}, ${percent(hourObj.rain)} rain chance · ${precipInfo.shortText}).`
   };
 }
 
@@ -478,7 +623,7 @@ function classifyWindowCondition(hourObj) {
 // 6. Update All UI Screens with Live Data
 function updateLocationAndDateLabels() {
   const dateInputEl = document.getElementById("run-date-input");
-  const dateLabel = formatDateLabel(dateInputEl?.value || getDefaultDateString());
+  const dateLabel = formatDateLabel(dateInputEl?.value);
 
   document.querySelectorAll(".current-location").forEach((el) => {
     el.textContent = appState.location.name;
@@ -508,18 +653,25 @@ function updateLocationAndDateLabels() {
 
 function updateRunCalculations() {
   updateLocationAndDateLabels();
+  document.querySelectorAll("[data-unit]").forEach(btn => btn.classList.toggle("active", btn.dataset.unit === appState.units));
+  document.querySelectorAll("#annotation-tags .tag-pill").forEach(btn => btn.classList.toggle("active", btn.dataset.tag === appState.selectedFeelingTag));
 
-  const startInput = document.getElementById("start-time-input")?.value || "06:30";
-  const durationInput = parseInt(document.getElementById("duration-input")?.value, 10) || 30;
-  const homeByInput = document.getElementById("home-by-input")?.value || "";
-  const dateStr = document.getElementById("run-date-input")?.value || getDefaultDateString();
-
-  const startMins = parseTimeToMinutes(startInput);
+  const plan = readRunPlan();
+  const validationMessage = document.getElementById("plan-validation-message");
+  validationMessage.textContent = Object.values(plan.errors).join(" ");
+  validationMessage.hidden = plan.valid;
+  for (const id of ["run-date-input", "start-time-input", "duration-input", "home-by-input"]) {
+    document.getElementById(id).setAttribute("aria-invalid", String(Boolean(plan.errors[id])));
+  }
+  if (!plan.valid) {
+    renderInvalidPlan(plan);
+    return;
+  }
+  const { startMins, dateStr, homeByMins, duration: durationInput } = plan;
   const finishMins = startMins + durationInput;
-  const homeByMins = parseTimeToMinutes(homeByInput);
 
   const formattedStart = formatMinutesTo12Hr(startMins);
-  const formattedFinish = formatMinutesTo12Hr(finishMins);
+  const formattedFinish = formatMinutesTo12Hr(finishMins) + (finishMins >= 1440 ? " (next day)" : "");
   const summaryText = `${formattedStart.replace(/ [ap]\.m\./, "")}–${formattedFinish} · ${durationInput} min`;
 
   document.getElementById("expected-finish").textContent = formattedFinish;
@@ -581,22 +733,22 @@ function updateRunCalculations() {
 
 function renderWeatherForHour(targetHour24, dateStr) {
   const h = getHourData(targetHour24, dateStr);
-  const precipInfo = formatPrecipIntensity(h.precipMm ?? 0, h.rain);
+  const precipInfo = formatPrecipIntensity(h.precipMm, h.rain);
 
   const previewEl = document.getElementById("home-weather-preview");
   if (previewEl) {
     previewEl.textContent =
       h.tempF !== null
-        ? `Currently ${formatTemp(h.tempF)} · ${h.shortForecast} (${h.rain}% · ${precipInfo.shortText})`
-        : weatherState.error || "Loading forecast...";
+        ? `At planned start: ${formatTemp(h.tempF)} · ${h.shortForecast} (${percent(h.rain)} · ${precipInfo.shortText})`
+        : weatherState.error || (weatherState.loading ? "Loading forecast..." : "Forecast unavailable for the selected date/hour.");
   }
 
   document.getElementById("win-temp").textContent = formatTemp(h.tempF);
-  document.getElementById("win-rain").textContent = `${h.rain}% (${precipInfo.label})`;
+  document.getElementById("win-rain").textContent = `${percent(h.rain)} (${precipInfo.label})`;
   document.getElementById("win-wind").textContent = h.windSpeedLabel;
 
   document.getElementById("temp-value").textContent = formatTemp(h.tempF);
-  document.getElementById("rain-value").textContent = `${h.rain}% · ${precipInfo.amountText}`;
+  document.getElementById("rain-value").textContent = `${percent(h.rain)} · ${precipInfo.amountText}`;
   document.getElementById("wind-value").textContent = `${h.windSpeedLabel} ${h.windDir}`.trim();
 
   const windowCard = document.getElementById("window-status-card");
@@ -614,42 +766,33 @@ function renderWeatherForHour(targetHour24, dateStr) {
     el.textContent = weatherState.alertHeadline;
   });
 
-  if (weatherState.alertStatus === "failed" && h.tempF !== null) {
-    windowCard.classList.add("neutral-banner");
-    alertBox.classList.add("caution");
-    windowTitle.textContent = "Alerts check unavailable";
-    windowDesc.textContent = "Official alert status could not be verified. Hourly forecast values are shown below.";
-    alertTitle.textContent = "Alerts not verified";
-    alertDesc.textContent = `${h.shortForecast}. Rain: ${h.rain}% (${precipInfo.shortText}). Do not read a failed alert check as an absence of alerts.`;
-    return;
-  }
-
-  const status = classifyWindowCondition(h);
+  const start = parseTimeToMinutes(document.getElementById("start-time-input").value);
+  const duration = Number(document.getElementById("duration-input").value) || 30;
+  const status = evaluateRunWindow(start, duration, dateStr);
   windowCard.classList.add(status.level);
   alertBox.classList.add(status.level);
   windowTitle.textContent = status.title;
   windowDesc.textContent = status.desc;
-  alertTitle.textContent = status.title;
-  alertDesc.textContent = `${h.shortForecast}. Rain: ${h.rain}% (${precipInfo.shortText}), Humidity: ${h.humidity}%.`;
+  alertTitle.textContent = "Castward recommendation: " + status.title;
+  alertDesc.textContent = status.desc;
+
 }
 
 // 7. Dynamic Compare Start Times Screen
 function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
   const slot1End = startMins + durationInput;
-  const slot2Start = (startMins + 60) % 1440;
+  const slot2Start = startMins + 60;
+  const slot2Date = dateAtOffset(dateStr, slot2Start);
   const slot2End = slot2Start + durationInput;
 
   comparedSlots = {
     slot1Time: formatMinutesTo24HrInput(startMins),
-    slot2Time: formatMinutesTo24HrInput(slot2Start)
+    slot2Time: formatMinutesTo24HrInput(slot2Start),
+    slot1Date: dateStr, slot2Date
   };
 
-  const h1 = getHourData(Math.floor(startMins / 60), dateStr);
-  const h2 = getHourData(Math.floor(slot2Start / 60), dateStr);
-  const p1 = formatPrecipIntensity(h1.precipMm ?? 0, h1.rain);
-  const p2 = formatPrecipIntensity(h2.precipMm ?? 0, h2.rain);
-  const cond1 = classifyWindowCondition(h1);
-  const cond2 = classifyWindowCondition(h2);
+  const cond1 = evaluateRunWindow(startMins, durationInput, dateStr);
+  const cond2 = evaluateRunWindow(slot2Start, durationInput, dateStr);
 
   const s1StartFormatted = formatMinutesTo12Hr(startMins);
   const s2StartFormatted = formatMinutesTo12Hr(slot2Start);
@@ -667,9 +810,7 @@ function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
   badge1.className = `pill-badge ${cond1.badgeClass}`;
   badge1.textContent = cond1.badgeText;
   document.getElementById("compare-slot1-title").textContent = s1Text;
-  document.getElementById("compare-slot1-desc").textContent = `${h1.shortForecast} · ${formatTemp(
-    h1.tempF
-  )} · rain ${h1.rain}% (${p1.shortText}) · wind ${h1.windSpeedLabel} ${h1.windDir}`.trim();
+  document.getElementById("compare-slot1-desc").textContent = cond1.desc;
 
   const c1Dead = document.getElementById("compare-slot1-deadline");
   if (homeByMins !== null) {
@@ -688,10 +829,8 @@ function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
   card2.className = `alert-box ${cond2.level}`;
   badge2.className = `pill-badge ${cond2.badgeClass}`;
   badge2.textContent = cond2.badgeText;
-  document.getElementById("compare-slot2-title").textContent = s2Text;
-  document.getElementById("compare-slot2-desc").textContent = `${h2.shortForecast} · ${formatTemp(
-    h2.tempF
-  )} · rain ${h2.rain}% (${p2.shortText}) · wind ${h2.windSpeedLabel} ${h2.windDir}`.trim();
+  document.getElementById("compare-slot2-title").textContent = s2Text + (slot2Start >= 1440 ? " (next day)" : "");
+  document.getElementById("compare-slot2-desc").textContent = cond2.desc;
 
   const c2Dead = document.getElementById("compare-slot2-deadline");
   if (homeByMins !== null) {
@@ -707,22 +846,8 @@ function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
   // Dynamic Tradeoff Summary & Buttons
   const tradeoffEl = document.getElementById("compare-tradeoff-text");
   if (tradeoffEl) {
-    const rainDiff = h2.rain - h1.rain;
-    const tempDiff = (h2.tempF ?? 0) - (h1.tempF ?? 0);
-    const rainPhrase =
-      rainDiff === 0
-        ? `the same rain chance (${h2.rain}% · ${p2.label.toLowerCase()})`
-        : rainDiff < 0
-        ? `a lower rain chance (${h2.rain}% · ${p2.label.toLowerCase()} vs. ${h1.rain}%)`
-        : `a higher rain chance (${h2.rain}% · ${p2.label.toLowerCase()} vs. ${h1.rain}%)`;
-    const tempPhrase =
-      tempDiff === 0
-        ? `the same temperature (${formatTemp(h2.tempF)})`
-        : `a ${tempDiff > 0 ? "warmer" : "cooler"} temperature (${formatTemp(h2.tempF)} vs. ${formatTemp(h1.tempF)})`;
+    tradeoffEl.textContent = `First window: ${cond1.badgeText}. One hour later: ${cond2.badgeText}. Each recommendation covers the entire run; compare the ranges above.`;
 
-    tradeoffEl.textContent = `Starting at ${s2StartFormatted} gives ${rainPhrase} and ${tempPhrase}, finishing at ${formatMinutesTo12Hr(
-      slot2End
-    )}.`;
   }
 
   const btn1 = document.getElementById("btn-use-slot1");
@@ -743,12 +868,14 @@ function renderCompareScreen(startMins, durationInput, homeByMins, dateStr) {
 
 document.getElementById("btn-use-slot1")?.addEventListener("click", () => {
   document.getElementById("start-time-input").value = comparedSlots.slot1Time;
+  document.getElementById("run-date-input").value = comparedSlots.slot1Date;
   updateRunCalculations();
   showScreen("screen-window");
 });
 
 document.getElementById("btn-use-slot2")?.addEventListener("click", () => {
   document.getElementById("start-time-input").value = comparedSlots.slot2Time;
+  document.getElementById("run-date-input").value = comparedSlots.slot2Date;
   updateRunCalculations();
   showScreen("screen-window");
 });
@@ -758,21 +885,15 @@ function renderHourlyForecastCards(startHour24, dateStr) {
   const grid = document.getElementById("hourly-cards-grid");
   if (!grid) return;
 
-  const [y, m, d] = dateStr.split("-").map(Number);
-
   const cardsHtml = Array.from({ length: 24 }, (_, offset) => offset)
     .map((offset) => {
-      const slotDate = new Date(y, m - 1, d, startHour24 + offset);
-      const slotDateStr = `${slotDate.getFullYear()}-${String(slotDate.getMonth() + 1).padStart(
-        2,
-        "0"
-      )}-${String(slotDate.getDate()).padStart(2, "0")}`;
-      const hour24 = slotDate.getHours();
-      const timeLabel = formatMinutesTo12Hr(hour24 * 60);
+      const slotDateStr = dateAtOffset(dateStr, (startHour24 + offset) * 60);
+      const hour24 = (startHour24 + offset) % 24;
+      const timeLabel = `${formatDateLabel(slotDateStr)} ${formatMinutesTo12Hr(hour24 * 60)}`;
       const h = getHourData(hour24, slotDateStr);
-      const precipInfo = formatPrecipIntensity(h.precipMm ?? 0, h.rain);
+      const precipInfo = formatPrecipIntensity(h.precipMm, h.rain);
       const fLower = h.shortForecast.toLowerCase();
-      const icon = fLower.includes("thunder")
+      const icon = h.available === false || fLower.includes("unavailable") ? "?" : fLower.includes("thunder")
         ? "⛈️"
         : h.rain >= 25 || fLower.includes("rain") || fLower.includes("shower")
         ? "🌧️"
@@ -785,10 +906,10 @@ function renderHourlyForecastCards(startHour24, dateStr) {
       <div class="hour-card${activeClass}">
         <strong class="hour-time">${timeLabel}</strong>
         <span class="hour-icon">${icon}</span>
-        <strong class="hour-main">${formatTemp(h.tempF)} · rain ${h.rain}%</strong>
+        <strong class="hour-main">${formatTemp(h.tempF)} · rain ${percent(h.rain)}</strong>
         <span class="precip-pill">${precipInfo.shortText}</span>
         <p class="hour-desc">${h.windSpeedLabel} ${h.windDir} · ${h.shortForecast}</p>
-        <span class="hour-humidity">Humidity: ${h.humidity}%</span>
+        <span class="hour-humidity">Humidity: ${percent(h.humidity)}</span>
       </div>
     `;
     })
@@ -802,7 +923,7 @@ function updateClothingRecommendations(targetHour24, dateStr) {
   const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
   const hour24 = targetHour24 !== undefined ? targetHour24 : Math.floor(startMins / 60);
   const h = getHourData(hour24, dateStr);
-  const precipInfo = formatPrecipIntensity(h.precipMm ?? 0, h.rain);
+  const precipInfo = formatPrecipIntensity(h.precipMm, h.rain);
 
   const act = appState.activity;
   const pref = appState.clothingPref;
@@ -818,11 +939,11 @@ function updateClothingRecommendations(targetHour24, dateStr) {
   if (weatherLabel) {
     weatherLabel.textContent =
       h.tempF !== null
-        ? `${formatTemp(h.tempF)}, ${h.rain}% rain (${precipInfo.label}), ${h.windSpeedLabel} wind`
-        : "Live weather";
+        ? `At start: ${formatTemp(h.tempF)}, ${percent(h.rain)} rain (${precipInfo.label}), ${h.windSpeedLabel} wind`
+        : "Forecast unavailable";
   }
 
-  const rawTempF = h.tempF ?? 60;
+  const rawTempF = h.tempF;
   const prefOffset = pref === "warmer" ? -8 : pref === "cooler" ? 8 : 0;
   const actOffset = act === "run-walk" ? -4 : 0;
   const effectiveTempF = rawTempF + prefOffset + actOffset;
@@ -837,6 +958,15 @@ function updateClothingRecommendations(targetHour24, dateStr) {
   const accDesc = document.getElementById("gear-acc-desc");
   const reasonEl = document.getElementById("clothing-reason-text");
 
+  if (!Number.isFinite(rawTempF)) {
+    for (const name of ["base", "layer", "shell", "acc"]) {
+      document.getElementById(`gear-${name}-title`).textContent = { base: "Base layer", layer: "Removable layer", shell: "Outer shell", acc: "Accessories" }[name];
+      document.getElementById(`gear-${name}-desc`).textContent = "Forecast unavailable. Choose manually after checking local conditions.";
+      document.getElementById(`gear-${name}`).checked = appState.manualOverrides[`gear-${name}`] ?? false;
+    }
+    reasonEl.textContent = "Clothing recommendations unavailable without temperature data.";
+    return;
+  }
   if (effectiveTempF < 40) {
     baseTitle.textContent = "Thermal long-sleeve base top & tights";
     baseDesc.textContent = `Insulated moisture-wicking base layer for ${formatTemp(rawTempF)} conditions.`;
@@ -854,13 +984,13 @@ function updateClothingRecommendations(targetHour24, dateStr) {
     layerDesc.textContent = "Useful during walking intervals or breezy stretches; tie around waist once warm.";
   } else {
     baseTitle.textContent = "Light singlet or sleeveless breathable top";
-    baseDesc.textContent = `Maximum ventilation for ${formatTemp(rawTempF)} and ${h.humidity}% humidity.`;
+    baseDesc.textContent = `Maximum ventilation for ${formatTemp(rawTempF)} and ${percent(h.humidity)} humidity.`;
     layerTitle.textContent = "Light warm-up layer (optional)";
     layerDesc.textContent = "Only needed before starting if standing in shade or wind.";
   }
 
   shellTitle.textContent = "Water/wind-resistant outer shell";
-  shellDesc.textContent = `Current rain chance is ${h.rain}% (${precipInfo.shortText}) with ${h.windSpeedLabel} wind (${h.humidity}% humidity).`;
+  shellDesc.textContent = `Current rain chance is ${percent(h.rain)} (${precipInfo.shortText}) with ${h.windSpeedLabel} wind (${percent(h.humidity)} humidity).`;
 
   accTitle.textContent =
     rawTempF < 45 ? "Gloves, headband & visibility gear" : "Brimmed cap, sunglasses & visibility gear";
@@ -930,13 +1060,12 @@ document.querySelectorAll("[data-pref]").forEach((btn) => {
 });
 
 function updateSavedClothingSummary() {
-  const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
-  const dateStr = document.getElementById("run-date-input")?.value || getDefaultDateString();
+  const { valid, startMins, dateStr } = readRunPlan();
   const headerEl = document.getElementById("saved-plan-header");
   if (headerEl) {
-    headerEl.textContent = `${appState.location.name} · ${formatDateLabel(dateStr)} · ${formatMinutesTo12Hr(
+    headerEl.textContent = valid ? `${appState.location.name} · ${formatDateLabel(dateStr)} · ${formatMinutesTo12Hr(
       startMins
-    )} start`;
+    )} start` : "Check run details before saving a plan.";
   }
 
   const modeEl = document.getElementById("saved-plan-mode");
@@ -964,10 +1093,8 @@ function updateSavedClothingSummary() {
 
 // 10. Active Run Timer & Saved Sessions
 function getCurrentRunSummary() {
-  const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
-  const duration = parseInt(document.getElementById("duration-input")?.value, 10) || 30;
-  const homeBy = parseTimeToMinutes(document.getElementById("home-by-input")?.value);
-  const dateStr = document.getElementById("run-date-input")?.value || getDefaultDateString();
+  if (!requireValidPlan()) return null;
+  const { startMins, duration, dateStr, homeByMins: homeBy } = readRunPlan();
   const startHour = Math.floor(startMins / 60);
   const weather = getHourData(startHour, dateStr);
 
@@ -1068,7 +1195,9 @@ function startRunTimer() {
 }
 
 document.getElementById("btn-start-run")?.addEventListener("click", () => {
-  appState.savedRun = getCurrentRunSummary();
+  const summary = getCurrentRunSummary();
+  if (!summary) return;
+  appState.savedRun = summary;
   appState.runStarted = true;
   appState.runCompleted = false;
   appState.runStartedAt = Date.now();
@@ -1080,7 +1209,9 @@ document.getElementById("btn-start-run")?.addEventListener("click", () => {
 });
 
 document.getElementById("btn-save-session")?.addEventListener("click", () => {
-  appState.savedRun = getCurrentRunSummary();
+  const summary = getCurrentRunSummary();
+  if (!summary) return;
+  appState.savedRun = summary;
   saveState();
   renderSavedRun();
   showScreen("screen-saved");
@@ -1093,6 +1224,13 @@ document.getElementById("btn-finish-run")?.addEventListener("click", () => {
 });
 
 // 11. Session Reflections (Persisted in localStorage)
+function textElement(tag, className = "", text = "") {
+  const element = document.createElement(tag);
+  element.className = className;
+  element.textContent = text;
+  return element;
+}
+
 function renderAnnotations() {
   const feed = document.getElementById("annotations-history");
   if (!feed) return;
@@ -1102,19 +1240,22 @@ function renderAnnotations() {
     return;
   }
 
-  feed.innerHTML = appState.annotations
-    .map(
-      (a) => `
-      <div class="annotation-item">
-        <div class="ann-meta">
-          <span class="ann-tag">${a.feelingTag}</span>
-          <span>${a.date} <button type="button" class="delete-note-btn" data-delete-id="${a.id}" title="Delete note">&times;</button></span>
-        </div>
-        <p><strong>${a.gearSummary}:</strong> ${a.note}</p>
-      </div>
-    `
-    )
-    .join("");
+  feed.replaceChildren(...appState.annotations.map((a) => {
+    const item = textElement("div", "annotation-item");
+    const meta = textElement("div", "ann-meta");
+    const tag = textElement("span", "ann-tag", a.feelingTag);
+    const date = textElement("span", "", `${a.date} `);
+    const remove = textElement("button", "delete-note-btn", "\u00d7");
+    remove.type = "button";
+    remove.dataset.deleteId = a.id;
+    remove.title = "Delete note";
+    date.append(remove);
+    meta.append(tag, date);
+    const paragraph = textElement("p");
+    paragraph.append(textElement("strong", "", `${a.gearSummary}:`), document.createTextNode(` ${a.note}`));
+    item.append(meta, paragraph);
+    return item;
+  }));
 }
 
 document.getElementById("annotations-history")?.addEventListener("click", (e) => {
@@ -1139,6 +1280,7 @@ document.getElementById("btn-add-annotation")?.addEventListener("click", () => {
   const noteInput = document.getElementById("session-note-input");
   const text = (noteInput?.value || "").trim();
   if (!text) return;
+  if (!requireValidPlan()) return;
 
   const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
   const dateStr = document.getElementById("run-date-input")?.value || getDefaultDateString();
@@ -1177,7 +1319,7 @@ async function searchLocations() {
   const query = (input?.value || "").trim();
   if (!query || !resultsContainer) return;
 
-  resultsContainer.innerHTML = `<p class="helper-text">Searching for "${query}"...</p>`;
+  resultsContainer.replaceChildren(textElement("p", "helper-text", `Searching for "${query}"...`));
   try {
     const res = await fetch(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`
@@ -1189,19 +1331,19 @@ async function searchLocations() {
       return;
     }
 
-    resultsContainer.innerHTML = results
-      .map((item) => {
-        const region = item.admin1 ? `, ${item.admin1}` : "";
-        const country = item.country_code ? ` (${item.country_code})` : "";
-        const displayName = `${item.name}${region}${country}`;
-        return `
-          <button type="button" class="search-result-item" data-lat="${item.latitude}" data-lon="${item.longitude}" data-name="${displayName}">
-            <strong>${displayName}</strong>
-            <span>${Number(item.latitude).toFixed(2)}, ${Number(item.longitude).toFixed(2)}</span>
-          </button>
-        `;
-      })
-      .join("");
+    resultsContainer.replaceChildren(...results.map((item) => {
+      const region = item.admin1 ? `, ${item.admin1}` : "";
+      const country = item.country_code ? ` (${item.country_code})` : "";
+      const displayName = `${item.name}${region}${country}`;
+      const button = textElement("button", "search-result-item");
+      button.type = "button";
+      button.dataset.lat = item.latitude;
+      button.dataset.lon = item.longitude;
+      button.dataset.name = displayName;
+      button.append(textElement("strong", "", displayName),
+        textElement("span", "", `${Number(item.latitude).toFixed(2)}, ${Number(item.longitude).toFixed(2)}`));
+      return button;
+    }));
   } catch {
     resultsContainer.innerHTML = `<p class="helper-text">Search failed. Please check your network connection.</p>`;
   }
@@ -1288,12 +1430,18 @@ document.getElementById("btn-refresh-weather")?.addEventListener("click", async 
   const fb = document.getElementById("refresh-feedback");
   if (fb) fb.textContent = "Refreshing live weather...";
   await fetchLiveWeatherForLocation(appState.location.lat, appState.location.lon);
-  if (fb) fb.textContent = `Updated at ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`;
+  if (fb) fb.textContent = weatherState.error || `Updated at ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`;
 });
 
 document.getElementById("btn-clear-data")?.addEventListener("click", () => {
-  localStorage.removeItem(STORAGE_KEY);
+  try { localStorage.removeItem(STORAGE_KEY); } catch (err) { console.warn("Unable to clear local storage:", err); }
+  clearInterval(runTimerInterval);
+  runTimerInterval = null;
+  document.getElementById("active-run-panel").classList.add("hidden");
+  document.getElementById("btn-finish-run").textContent = "Finish run";
   appState = structuredClone(defaultState);
+  saveState();
+  fetchLiveWeatherForLocation(appState.location.lat, appState.location.lon);
   renderAnnotations();
   renderSavedRun();
   updateRunCalculations();

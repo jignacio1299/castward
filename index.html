@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Castward</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -253,14 +254,14 @@
                 </div>
                 <label class="input-box" for="run-date-input">
                   <span class="input-label">Date</span>
-                  <input type="date" id="run-date-input" />
+                  <input type="date" id="run-date-input" required aria-describedby="plan-validation-message" />
                 </label>
               </div>
 
               <div class="two-col-row">
                 <label class="input-box" for="start-time-input">
                   <span class="input-label">Start time</span>
-                  <input type="time" id="start-time-input" value="06:30" />
+                  <input type="time" id="start-time-input" value="06:30" required aria-describedby="plan-validation-message" />
                 </label>
 
                 <label class="input-box" for="duration-input">
@@ -272,6 +273,8 @@
                     min="5"
                     max="300"
                     step="5"
+                    required
+                    aria-describedby="plan-validation-message"
                   />
                 </label>
               </div>
@@ -282,6 +285,7 @@
               >
                 See conditions
               </button>
+              <p id="plan-validation-message" class="action-feedback" role="status" hidden></p>
             </div>
 
             <div class="card">
@@ -298,7 +302,7 @@
                 style="display: block"
               >
                 <span class="input-label">Home by · optional</span>
-                <input type="time" id="home-by-input" />
+                <input type="time" id="home-by-input" aria-describedby="plan-validation-message" />
               </label>
 
               <p id="plan-return-status" class="helper-text">
@@ -460,6 +464,7 @@
               </div>
 
               <!-- Weather Metrics -->
+              <p class="helper-text">Values below are for the starting hour. The recommendation above covers the whole run.</p>
               <div class="metrics-row" style="margin-bottom: 0">
                 <div class="metric-box white-bg">
                   <span class="metric-label">
@@ -645,6 +650,7 @@
                 <p id="alert-desc">Loading forecast detail.</p>
               </div>
 
+              <p class="helper-text">Values below are for the starting hour. Check hourly details for changes during your run.</p>
               <div class="metrics-row">
                 <div class="metric-box">
                   <span class="metric-label">Temperature</span>
