@@ -95,10 +95,10 @@ function formatTemp(tempF) {
 }
 
 function formatDateLabel(dateInputStr) {
-  if (!dateInputStr) return "Today";
-  const [y, m, d] = dateInputStr.split("-").map(Number);
-  const dateObj = new Date(y, m - 1, d);
+  if (!isValidCalendarDate(dateInputStr)) return "Date unavailable";
+  const dateObj = new Date(`${dateInputStr}T00:00:00Z`);
   return dateObj.toLocaleDateString("en-US", {
+    timeZone: "UTC",
     weekday: "short",
     month: "short",
     day: "numeric"
@@ -107,6 +107,7 @@ function formatDateLabel(dateInputStr) {
 
 // 1. Screen Navigation
 function showScreen(screenId) {
+  if (["screen-window", "screen-forecast", "screen-compare", "screen-hourly", "screen-clothing", "screen-indoor"].includes(screenId) && !requireValidPlan()) return;
   const currentActive = document.querySelector(".screen.active");
   if (currentActive && currentActive.id !== screenId && screenId === "screen-hourly") {
     previousScreen = currentActive.id;
@@ -139,6 +140,7 @@ document.addEventListener("click", (e) => {
   const navTrigger = e.target.closest("[data-target]");
   if (navTrigger) {
     e.preventDefault();
+    if (["btn-save-clothing", "btn-confirm-indoor"].includes(navTrigger.id) && !requireValidPlan()) return;
     if (navTrigger.id === "btn-save-clothing") {
       updateSavedClothingSummary();
       saveState();
@@ -163,9 +165,83 @@ document.addEventListener("click", (e) => {
 
 // 2. Time Helpers
 function parseTimeToMinutes(timeStr) {
-  if (!timeStr) return null;
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(timeStr)) return null;
   const [hours, minutes] = timeStr.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+function isValidCalendarDate(dateStr) {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) && dateStr.slice(0, 4) !== "0000"
+    ? new Date(`${dateStr}T00:00:00Z`) : null;
+  return Boolean(date && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === dateStr);
+}
+
+function validatePlanValues({ dateStr, startTime, duration, homeBy }) {
+  const errors = {};
+  if (!isValidCalendarDate(dateStr)) {
+    errors["run-date-input"] = "Choose a valid calendar date.";
+  }
+  const startMins = parseTimeToMinutes(startTime);
+  if (startMins === null) errors["start-time-input"] = "Enter a valid start time.";
+  const minutes = Number(duration);
+  if (!/^\d+$/.test(duration) || !Number.isInteger(minutes) || minutes < 5 || minutes > 300 || minutes % 5 !== 0) {
+    errors["duration-input"] = "Enter a duration from 5 to 300 minutes in steps of 5.";
+  }
+  if (homeBy !== "" && parseTimeToMinutes(homeBy) === null) errors["home-by-input"] = "Enter a valid Home by time or leave it empty.";
+  // Comparisons and the 24-hour view must also stay within four-digit years.
+  if (!Object.keys(errors).length) {
+    const lastDate = new Date(`${dateStr}T00:00:00Z`);
+    lastDate.setUTCMinutes(Math.max(startMins + minutes + 60, Math.floor(startMins / 60) * 60 + 23 * 60));
+    if (lastDate.getUTCFullYear() > 9999) errors["run-date-input"] = "Choose a date whose run and hourly view finish before year 10000.";
+  }
+  return { valid: !Object.keys(errors).length, errors, dateStr, startMins, duration: minutes,
+    homeByMins: deadlineMinutes(parseTimeToMinutes(homeBy), startMins) };
+}
+
+function readRunPlan() {
+  const value = id => document.getElementById(id)?.value ?? "";
+  const plan = validatePlanValues({ dateStr: value("run-date-input"), startTime: value("start-time-input"),
+    duration: value("duration-input"), homeBy: value("home-by-input") });
+  for (const id of ["run-date-input", "start-time-input", "duration-input", "home-by-input"]) {
+    if (document.getElementById(id)?.validity?.badInput) plan.errors[id] = "Complete or correct this field.";
+  }
+  plan.valid = !Object.keys(plan.errors).length;
+  return plan;
+}
+
+function requireValidPlan() {
+  const plan = readRunPlan();
+  if (plan.valid) return true;
+  updateRunCalculations();
+  showScreen("screen-plan");
+  document.getElementById(Object.keys(plan.errors)[0])?.focus();
+  return false;
+}
+
+function renderInvalidPlan(plan) {
+  const message = Object.values(plan.errors).join(" ");
+  for (const id of ["expected-finish", "window-summary-time", "forecast-summary-time", "window-home-by",
+    "win-temp", "win-rain", "win-wind", "temp-value", "rain-value", "wind-value", "clothing-time-label",
+    "compare-duration-label", "compare-homeby-label", "compare-slot1-title", "compare-slot2-title",
+    "compare-slot1-deadline", "compare-slot2-deadline", "indoor-saved-window", "indoor-saved-meta"]) {
+    document.getElementById(id).textContent = "--";
+  }
+  for (const id of ["home-weather-preview", "plan-return-status", "window-status-desc", "alert-desc",
+    "compare-slot1-desc", "compare-slot2-desc", "compare-tradeoff-text", "saved-plan-header"]) {
+    document.getElementById(id).textContent = `Check run details. ${message}`;
+  }
+  for (const id of ["window-status-title", "alert-title"]) document.getElementById(id).textContent = "Check run details";
+  for (const id of ["window-status-card", "alert-box", "compare-card-1", "compare-card-2"]) {
+    const el = document.getElementById(id);
+    el.classList.remove("danger", "caution", "clear");
+    el.classList.add("neutral-banner");
+  }
+  for (const id of ["compare-badge-1", "compare-badge-2"]) document.getElementById(id).textContent = "Unavailable";
+  document.getElementById("late-return-box").classList.add("hidden");
+  document.getElementById("hourly-cards-grid").textContent = "Check run details before viewing the forecast.";
+  updateClothingRecommendations(NaN, "invalid");
+  document.getElementById("clothing-weather-label").textContent = "Check run details";
+  document.getElementById("clothing-reason-text").textContent = "Correct run details before using clothing recommendations.";
 }
 
 // A Home by clock time earlier than the start belongs to the following day.
@@ -547,7 +623,7 @@ function classifyWindowCondition(hourObj) {
 // 6. Update All UI Screens with Live Data
 function updateLocationAndDateLabels() {
   const dateInputEl = document.getElementById("run-date-input");
-  const dateLabel = formatDateLabel(dateInputEl?.value || getDefaultDateString());
+  const dateLabel = formatDateLabel(dateInputEl?.value);
 
   document.querySelectorAll(".current-location").forEach((el) => {
     el.textContent = appState.location.name;
@@ -580,14 +656,19 @@ function updateRunCalculations() {
   document.querySelectorAll("[data-unit]").forEach(btn => btn.classList.toggle("active", btn.dataset.unit === appState.units));
   document.querySelectorAll("#annotation-tags .tag-pill").forEach(btn => btn.classList.toggle("active", btn.dataset.tag === appState.selectedFeelingTag));
 
-  const startInput = document.getElementById("start-time-input")?.value || "06:30";
-  const durationInput = parseInt(document.getElementById("duration-input")?.value, 10) || 30;
-  const homeByInput = document.getElementById("home-by-input")?.value || "";
-  const dateStr = document.getElementById("run-date-input")?.value || getDefaultDateString();
-
-  const startMins = parseTimeToMinutes(startInput);
+  const plan = readRunPlan();
+  const validationMessage = document.getElementById("plan-validation-message");
+  validationMessage.textContent = Object.values(plan.errors).join(" ");
+  validationMessage.hidden = plan.valid;
+  for (const id of ["run-date-input", "start-time-input", "duration-input", "home-by-input"]) {
+    document.getElementById(id).setAttribute("aria-invalid", String(Boolean(plan.errors[id])));
+  }
+  if (!plan.valid) {
+    renderInvalidPlan(plan);
+    return;
+  }
+  const { startMins, dateStr, homeByMins, duration: durationInput } = plan;
   const finishMins = startMins + durationInput;
-  const homeByMins = deadlineMinutes(parseTimeToMinutes(homeByInput), startMins);
 
   const formattedStart = formatMinutesTo12Hr(startMins);
   const formattedFinish = formatMinutesTo12Hr(finishMins) + (finishMins >= 1440 ? " (next day)" : "");
@@ -979,13 +1060,12 @@ document.querySelectorAll("[data-pref]").forEach((btn) => {
 });
 
 function updateSavedClothingSummary() {
-  const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
-  const dateStr = document.getElementById("run-date-input")?.value || getDefaultDateString();
+  const { valid, startMins, dateStr } = readRunPlan();
   const headerEl = document.getElementById("saved-plan-header");
   if (headerEl) {
-    headerEl.textContent = `${appState.location.name} · ${formatDateLabel(dateStr)} · ${formatMinutesTo12Hr(
+    headerEl.textContent = valid ? `${appState.location.name} · ${formatDateLabel(dateStr)} · ${formatMinutesTo12Hr(
       startMins
-    )} start`;
+    )} start` : "Check run details before saving a plan.";
   }
 
   const modeEl = document.getElementById("saved-plan-mode");
@@ -1013,10 +1093,8 @@ function updateSavedClothingSummary() {
 
 // 10. Active Run Timer & Saved Sessions
 function getCurrentRunSummary() {
-  const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
-  const duration = parseInt(document.getElementById("duration-input")?.value, 10) || 30;
-  const homeBy = parseTimeToMinutes(document.getElementById("home-by-input")?.value);
-  const dateStr = document.getElementById("run-date-input")?.value || getDefaultDateString();
+  if (!requireValidPlan()) return null;
+  const { startMins, duration, dateStr, homeByMins: homeBy } = readRunPlan();
   const startHour = Math.floor(startMins / 60);
   const weather = getHourData(startHour, dateStr);
 
@@ -1117,7 +1195,9 @@ function startRunTimer() {
 }
 
 document.getElementById("btn-start-run")?.addEventListener("click", () => {
-  appState.savedRun = getCurrentRunSummary();
+  const summary = getCurrentRunSummary();
+  if (!summary) return;
+  appState.savedRun = summary;
   appState.runStarted = true;
   appState.runCompleted = false;
   appState.runStartedAt = Date.now();
@@ -1129,7 +1209,9 @@ document.getElementById("btn-start-run")?.addEventListener("click", () => {
 });
 
 document.getElementById("btn-save-session")?.addEventListener("click", () => {
-  appState.savedRun = getCurrentRunSummary();
+  const summary = getCurrentRunSummary();
+  if (!summary) return;
+  appState.savedRun = summary;
   saveState();
   renderSavedRun();
   showScreen("screen-saved");
@@ -1142,6 +1224,13 @@ document.getElementById("btn-finish-run")?.addEventListener("click", () => {
 });
 
 // 11. Session Reflections (Persisted in localStorage)
+function textElement(tag, className = "", text = "") {
+  const element = document.createElement(tag);
+  element.className = className;
+  element.textContent = text;
+  return element;
+}
+
 function renderAnnotations() {
   const feed = document.getElementById("annotations-history");
   if (!feed) return;
@@ -1151,19 +1240,22 @@ function renderAnnotations() {
     return;
   }
 
-  feed.innerHTML = appState.annotations
-    .map(
-      (a) => `
-      <div class="annotation-item">
-        <div class="ann-meta">
-          <span class="ann-tag">${a.feelingTag}</span>
-          <span>${a.date} <button type="button" class="delete-note-btn" data-delete-id="${a.id}" title="Delete note">&times;</button></span>
-        </div>
-        <p><strong>${a.gearSummary}:</strong> ${a.note}</p>
-      </div>
-    `
-    )
-    .join("");
+  feed.replaceChildren(...appState.annotations.map((a) => {
+    const item = textElement("div", "annotation-item");
+    const meta = textElement("div", "ann-meta");
+    const tag = textElement("span", "ann-tag", a.feelingTag);
+    const date = textElement("span", "", `${a.date} `);
+    const remove = textElement("button", "delete-note-btn", "\u00d7");
+    remove.type = "button";
+    remove.dataset.deleteId = a.id;
+    remove.title = "Delete note";
+    date.append(remove);
+    meta.append(tag, date);
+    const paragraph = textElement("p");
+    paragraph.append(textElement("strong", "", `${a.gearSummary}:`), document.createTextNode(` ${a.note}`));
+    item.append(meta, paragraph);
+    return item;
+  }));
 }
 
 document.getElementById("annotations-history")?.addEventListener("click", (e) => {
@@ -1188,6 +1280,7 @@ document.getElementById("btn-add-annotation")?.addEventListener("click", () => {
   const noteInput = document.getElementById("session-note-input");
   const text = (noteInput?.value || "").trim();
   if (!text) return;
+  if (!requireValidPlan()) return;
 
   const startMins = parseTimeToMinutes(document.getElementById("start-time-input")?.value || "06:30");
   const dateStr = document.getElementById("run-date-input")?.value || getDefaultDateString();
@@ -1226,7 +1319,7 @@ async function searchLocations() {
   const query = (input?.value || "").trim();
   if (!query || !resultsContainer) return;
 
-  resultsContainer.innerHTML = `<p class="helper-text">Searching for "${query}"...</p>`;
+  resultsContainer.replaceChildren(textElement("p", "helper-text", `Searching for "${query}"...`));
   try {
     const res = await fetch(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`
@@ -1238,19 +1331,19 @@ async function searchLocations() {
       return;
     }
 
-    resultsContainer.innerHTML = results
-      .map((item) => {
-        const region = item.admin1 ? `, ${item.admin1}` : "";
-        const country = item.country_code ? ` (${item.country_code})` : "";
-        const displayName = `${item.name}${region}${country}`;
-        return `
-          <button type="button" class="search-result-item" data-lat="${item.latitude}" data-lon="${item.longitude}" data-name="${displayName}">
-            <strong>${displayName}</strong>
-            <span>${Number(item.latitude).toFixed(2)}, ${Number(item.longitude).toFixed(2)}</span>
-          </button>
-        `;
-      })
-      .join("");
+    resultsContainer.replaceChildren(...results.map((item) => {
+      const region = item.admin1 ? `, ${item.admin1}` : "";
+      const country = item.country_code ? ` (${item.country_code})` : "";
+      const displayName = `${item.name}${region}${country}`;
+      const button = textElement("button", "search-result-item");
+      button.type = "button";
+      button.dataset.lat = item.latitude;
+      button.dataset.lon = item.longitude;
+      button.dataset.name = displayName;
+      button.append(textElement("strong", "", displayName),
+        textElement("span", "", `${Number(item.latitude).toFixed(2)}, ${Number(item.longitude).toFixed(2)}`));
+      return button;
+    }));
   } catch {
     resultsContainer.innerHTML = `<p class="helper-text">Search failed. Please check your network connection.</p>`;
   }

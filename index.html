@@ -254,14 +254,14 @@
                 </div>
                 <label class="input-box" for="run-date-input">
                   <span class="input-label">Date</span>
-                  <input type="date" id="run-date-input" />
+                  <input type="date" id="run-date-input" required aria-describedby="plan-validation-message" />
                 </label>
               </div>
 
               <div class="two-col-row">
                 <label class="input-box" for="start-time-input">
                   <span class="input-label">Start time</span>
-                  <input type="time" id="start-time-input" value="06:30" />
+                  <input type="time" id="start-time-input" value="06:30" required aria-describedby="plan-validation-message" />
                 </label>
 
                 <label class="input-box" for="duration-input">
@@ -273,6 +273,8 @@
                     min="5"
                     max="300"
                     step="5"
+                    required
+                    aria-describedby="plan-validation-message"
                   />
                 </label>
               </div>
@@ -283,6 +285,7 @@
               >
                 See conditions
               </button>
+              <p id="plan-validation-message" class="action-feedback" role="status" hidden></p>
             </div>
 
             <div class="card">
@@ -299,7 +302,7 @@
                 style="display: block"
               >
                 <span class="input-label">Home by · optional</span>
-                <input type="time" id="home-by-input" />
+                <input type="time" id="home-by-input" aria-describedby="plan-validation-message" />
               </label>
 
               <p id="plan-return-status" class="helper-text">

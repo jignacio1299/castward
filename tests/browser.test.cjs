@@ -163,3 +163,116 @@ for (const viewport of [{ width:1280, height:900 }, { width:375, height:812 }]) 
     } finally { await context.close(); }
   });
 }
+
+test('HTML-like notes and persisted metadata render literally and remain deletable', async () => {
+  const { context, page, errors } = await setup({ width:375, height:812 });
+  const payload = '<img src=x onerror="globalThis.__unsafeRendered=true"> & <b>literal note</b>';
+  try {
+    await page.locator('.nav-item[data-target="screen-saved"]').click();
+    await page.locator('#btn-add-annotation').click();
+    assert.equal(await page.evaluate(() => appState.annotations.length),0);
+    await page.locator('#session-note-input').fill(payload);
+    await page.locator('#btn-add-annotation').click();
+    assert.equal(await page.locator('#annotations-history img, #annotations-history b').count(),0);
+    assert.ok((await text(page,'annotations-history')).includes(payload));
+    await page.evaluate(value => {
+      const note = appState.annotations[0];
+      note.feelingTag = value; note.date = value; note.gearSummary = value;
+      note.id = 'note-" data-injected="true';
+      saveState();
+    },payload);
+    await page.reload();
+    await page.waitForFunction(() => !weatherState.loading);
+    await page.locator('.nav-item[data-target="screen-saved"]').click();
+    assert.equal(await page.locator('.ann-tag').textContent(),payload);
+    assert.equal(await page.locator('#annotations-history img, #annotations-history b, [data-injected]').count(),0);
+    assert.equal(await page.evaluate(() => globalThis.__unsafeRendered),undefined);
+    await page.locator('.delete-note-btn').click();
+    assert.match(await text(page,'annotations-history'),/No session notes/);
+    assert.deepEqual(errors,[]);
+  } finally { await context.close(); }
+});
+
+test('location query, result text and dataset values cannot create HTML', async () => {
+  const { context, page, errors } = await setup({ width:375, height:812 });
+  const payload = '<img src=x onerror="globalThis.__unsafeRendered=true">';
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  try {
+    await page.route('https://geocoding-api.open-meteo.com/**', async route => {
+      await pending;
+      await route.fulfill({ json: { results: [{ name:payload, admin1:'Region " quoted',country_code:'US',latitude:40.7128,longitude:-74.006 }] } });
+    });
+    await page.evaluate(() => showScreen('screen-location'));
+    await page.locator('#location-search-input').fill(payload);
+    await page.locator('#btn-search-location').click();
+    assert.equal(await text(page,'location-search-results'),`Searching for "${payload}"...`);
+    assert.equal(await page.locator('#location-search-results img').count(),0);
+    release();
+    await page.locator('.search-result-item').waitFor();
+    const name = `${payload}, Region " quoted (US)`;
+    assert.equal(await page.locator('.search-result-item strong').textContent(),name);
+    assert.equal(await page.locator('.search-result-item').getAttribute('data-name'),name);
+    assert.equal(await page.locator('#location-search-results img').count(),0);
+    await page.locator('.search-result-item').click();
+    await page.waitForFunction(() => !weatherState.loading);
+    assert.equal(await page.evaluate(() => appState.location.name),name);
+    assert.equal(await page.evaluate(() => globalThis.__unsafeRendered),undefined);
+    assert.deepEqual(errors,[]);
+  } finally { release(); await context.close(); }
+});
+
+test('invalid plan inputs clear results, block actions and recover when corrected', async () => {
+  const { context, page, errors } = await setup({ width:375, height:812 });
+  try {
+    for (const [id, value] of [
+      ['run-date-input',''], ['start-time-input',''], ['duration-input',''], ['duration-input','0'],
+      ['duration-input','-30'], ['duration-input','30.5'], ['duration-input','31'], ['duration-input','305'],
+      ['run-date-input','2030-02-30'], ['start-time-input','25:10'], ['home-by-input','25:00']
+    ]) {
+      await plan(page,'06:30','30');
+      // Text mode lets the test exercise impossible raw dates/times that native controls sanitize.
+      await page.locator(`#${id}`).evaluate((el, raw) => {
+        el.type = 'text'; el.value = raw; el.dispatchEvent(new Event('input',{ bubbles:true }));
+      },value);
+      assert.equal(await text(page,'expected-finish'),'--',`${id}=${value}`);
+      assert.notEqual(await text(page,'plan-validation-message'),'');
+      assert.equal(await page.locator(`#${id}`).getAttribute('aria-invalid'),'true');
+      assert.equal(await text(page,'window-status-title'),'Check run details');
+      if (id === 'run-date-input') assert.equal(await page.locator('.current-date').first().textContent(),'Date unavailable');
+      assert.equal(await text(page,'compare-badge-1'),'Unavailable');
+      assert.doesNotMatch(await text(page,'hourly-cards-grid'),/60°F/);
+      assert.match(await text(page,'clothing-reason-text'),/Correct run details/);
+      await page.getByRole('button',{ name:'See conditions',exact:true }).click();
+      assert.equal(await page.locator('#screen-plan').isVisible(),true);
+      await page.locator('#btn-start-run').click();
+      await page.locator('#btn-save-session').click();
+      assert.equal(await page.evaluate(() => appState.savedRun),null);
+      assert.equal(await page.evaluate(() => appState.runStarted),false);
+      // Even a stale screen's indoor/clothing save handler must enforce the same guard.
+      await page.locator('#btn-confirm-indoor').evaluate(el => el.click());
+      await page.locator('#btn-save-clothing').evaluate(el => el.click());
+      assert.equal(await page.evaluate(() => appState.savedRun),null);
+      await page.locator('#session-note-input').evaluate(el => { el.value = 'Synthetic invalid-plan note'; });
+      await page.locator('#btn-add-annotation').evaluate(el => el.click());
+      assert.equal(await page.evaluate(() => appState.annotations.length),0);
+      await page.locator(`#${id}`).evaluate(el => {
+        el.type = el.id === 'run-date-input' ? 'date' : el.id === 'duration-input' ? 'number' : 'time';
+      });
+    }
+    await plan(page,'06:30','30','2030-06-01','');
+    assert.equal(await text(page,'expected-finish'),'7:00 a.m.');
+    assert.equal(await text(page,'plan-validation-message'),'');
+    await page.getByRole('button',{ name:'See conditions',exact:true }).click();
+    assert.equal(await page.locator('#screen-window').isVisible(),true);
+    assert.equal(await text(page,'window-status-title'),'Good window to run');
+    await page.evaluate(() => showScreen('screen-plan'));
+    await page.locator('#btn-save-session').click();
+    const saved = await page.evaluate(() => structuredClone(appState.savedRun));
+    await page.evaluate(() => showScreen('screen-plan'));
+    await page.locator('#duration-input').fill('0');
+    await page.locator('#btn-save-session').click();
+    assert.deepEqual(await page.evaluate(() => appState.savedRun),saved,'Invalid save preserves the existing session');
+    assert.deepEqual(errors,[]);
+  } finally { await context.close(); }
+});

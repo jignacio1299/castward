@@ -14,7 +14,7 @@ function app() {
       querySelectorAll: () => [], querySelector: () => null, addEventListener() {},
       getElementById(id) {
         if (!elements.has(id)) elements.set(id, { value: '', textContent: '', innerHTML: '', dataset: {}, style: {},
-          classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {} });
+          classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, setAttribute() {} });
         return elements.get(id);
       }
     },
@@ -141,4 +141,52 @@ test('total failure leaves no stale forecast', async () => {
   assert.equal(a.run('weatherState.hours.length'), 0);
   assert.equal(a.run('weatherState.alertStatus'), 'failed');
   assert.match(a.run('weatherState.source'), /unavailable/);
+});
+
+const normalPlan = { dateStr: '2030-06-01', startTime: '06:30', duration: '30', homeBy: '' };
+function validate(values) {
+  const a = app();
+  a.context.planFixture = { ...normalPlan, ...values };
+  return a.run('validatePlanValues(planFixture)');
+}
+
+test('required planning fields reject empty values; Home by stays optional', () => {
+  for (const field of ['dateStr', 'startTime', 'duration']) assert.equal(validate({ [field]: '' }).valid, false, field);
+  assert.equal(validate({ homeBy: '' }).valid, true);
+});
+
+test('calendar validation rejects impossible dates and accepts actual leap days', () => {
+  for (const dateStr of ['2030-02-29', '2030-02-30', '2030-04-31', '2030-13-01', '0000-01-01', 'not-a-date', '9999-12-31']) {
+    assert.equal(validate({ dateStr }).valid, false, dateStr);
+  }
+  assert.equal(validate({ dateStr: '2032-02-29' }).valid, true);
+  const a = app();
+  assert.equal(a.run('formatDateLabel("2030-02-30")'), 'Date unavailable');
+  assert.equal(a.run('formatDateLabel("0001-01-01")'), 'Mon, Jan 1');
+});
+
+test('duration validation rejects zero, negatives, fractions, invalid steps and out-of-bounds values', () => {
+  for (const duration of ['0','-5','1','31','30.5','305','Infinity','NaN','30 minutes']) {
+    assert.equal(validate({ duration }).valid, false, duration);
+  }
+  for (const duration of ['5','30','300']) assert.equal(validate({ duration }).valid, true, duration);
+});
+
+test('start and optional Home by require real minute-resolution clock times', () => {
+  for (const field of ['startTime','homeBy']) {
+    for (const time of ['24:00','06:60','6:30','06:30:12','invalid','<b>07:00</b>']) {
+      assert.equal(validate({ [field]: time }).valid, false, `${field}: ${time}`);
+    }
+  }
+});
+
+test('normal and midnight planning values retain correct duration and deadlines', () => {
+  const normal = validate({ homeBy:'07:15' });
+  assert.equal(normal.valid,true);
+  assert.equal(normal.startMins + normal.duration,420);
+  assert.equal(normal.homeByMins,435);
+  const midnight = validate({ startTime:'23:30',duration:'60',homeBy:'00:45' });
+  assert.equal(midnight.valid,true);
+  assert.equal(midnight.startMins + midnight.duration,1470);
+  assert.equal(midnight.homeByMins,1485);
 });
