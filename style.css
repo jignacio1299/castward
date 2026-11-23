@@ -827,3 +827,28 @@ body {
   padding: 4px 10px;
   border-radius: 999px;
 }
+
+/* Keep the existing cards and controls within narrow study viewports. */
+.content-grid > *, .two-col-row > *, .metrics-row > * {
+  min-width: 0;
+}
+
+.card, .info-box, .status-banner, .annotation-item {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .top-bar { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px; }
+  .nav-pills { justify-content: space-between; gap: 2px; padding: 6px; }
+  .nav-item { padding: 8px; }
+  .workspace { padding: 20px 16px; }
+  .content-grid { grid-template-columns: minmax(0, 1fr); }
+  .card { padding: 16px; }
+  .metrics-row { gap: 6px; }
+  .metric-box { padding: 10px; }
+  .metric-value { font-size: 16px; }
+  .mascot-row, .status-banner { padding: 12px; gap: 10px; }
+  .footer { padding: 16px; gap: 12px; flex-wrap: wrap; }
+  .annotation-item .ann-meta { flex-wrap: wrap; gap: 6px; }
+  .search-row input { min-width: 0; }
+}
